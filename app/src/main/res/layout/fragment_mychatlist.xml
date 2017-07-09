@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/mychatlist">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:id="@+id/mychatTextView"
+        android:textSize="16dp"
+        android:textStyle="bold"
+        android:text="로그인 후 사용가능합니다"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:visibility="gone"
+        android:id="@+id/nochatlist"
+        android:textSize="16dp"
+        android:textStyle="bold"
+        android:text="아직 참여중인 채팅이 없습니다"/>
+
+
+    <android.support.v7.widget.RecyclerView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/mychatlistRecyclerview"
+        android:layout_margin="10dp"
+        android:visibility="gone">
+    </android.support.v7.widget.RecyclerView>
+
+</LinearLayout>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.cmina.openmeeting">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="같이 밥먹자"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity android:name=".activity.OpenActivity"></activity>
+
+        <activity android:name=".activity.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".activity.SignUpActivity"></activity>
+        <activity android:name=".activity.LoginActivity" />
+        <activity android:name=".activity.ChatActivity" />
+
+        //stopWithTask true로하면 ontaskRemoved 호출되지 않는다.
+        <service android:name=".service.SocketService"
+            android:stopWithTask="false"></service>
+
+        <!--
+                <service android:name=".service.PersistentService"
+                    android:enabled="true"
+                    android:process=":remote">
+                </service>
+        -->
+        <!--
+
+                <receiver android:name=".broadcastreceiver.RestartService"
+                    android:enabled="true"
+                    android:exported="false"
+                    android:label="RestartService"
+                    android:process=":remote">
+
+                    <intent-filter>
+                  &lt;!&ndash;      <action android:name="android.intent.action.BOOT_COMPLETED"/>&ndash;&gt;
+                        <action android:name="ACTION.RESTART.SocketService" />
+                    </intent-filter>
+
+                </receiver>
+        -->
+
+
+    </application>
+
+    //인터넷 접속을 위한 권한 설정
+    <uses-permission android:name="android.permission.INTERNET" />
+    //인터넷 접속이 가능한지 체크하기 위해 네트워크 상태를 볼 수 있는 권한
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    //소켓 통신을 하기위한 부수적 권한(wifi change됐는지 )
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    //카메라 사용 권한
+    <uses-permission android:name="android.permission.CAMERA"/>
+    //외부저장소 쓰기
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"></uses-permission>
+    //외부저장소 읽기
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+</manifest>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="지역선택">
+        <item>지역선택</item>
+        <item>서울 강남·강서</item>
+        <item>서울 강북·강동</item>
+        <item>경기 동부·남부</item>
+        <item>경기 북부·인천</item>
+        <item>대전·충청</item>
+        <item>부산·울산·경남</item>
+        <item>대구·경북</item>
+        <item>광주·전라·기타</item>
+    </string-array>
+
+    <string-array name="상세지역기본">
+        <item>상세지역선택</item>
+    </string-array>
+
+    <string-array name="서울강남강서">
+        <item>상세지역선택</item>
+        <item>서초·양재·반포</item>
+        <item>강남·논현·학동</item>
+        <item>압구정·청담·신사</item>
+        <item>삼성·선릉·역삼</item>
+        <item>동작·관악</item>
+        <item>강서·양천</item>
+        <item>영등포·구로·금천</item>
+    </string-array>
+
+    <string-array name="서울강북강동">
+        <item>상세지역선택</item>
+        <item>종로·용산·중구</item>
+        <item>광진·중랑</item>
+        <item>동대문·성동</item>
+        <item>강북·성북</item>
+        <item>노원·도봉</item>
+        <item>마포·서대문·은평</item>
+        <item>강동·송파</item>
+    </string-array>
+
+    <string-array name="경기동부남부">
+        <item>상세지역선택</item>
+        <item>성남·분당·판교</item>
+        <item>용인·광주·이천</item>
+        <item>구리·하남·남양주</item>
+        <item>수원·광교</item>
+        <item>동탄·화성·오산·평택</item>
+        <item>안양·군포·의왕·과천</item>
+        <item>안산·광명·시흥</item>
+    </string-array>
+
+    <string-array name="경기북부인천">
+        <item>상세지역선택</item>
+        <item>일산</item>
+        <item>김포·파주</item>
+        <item>의정부·양주</item>
+        <item>부평·계양·서구·중구</item>
+        <item>남동구·남구·연수구</item>
+        <item>부천</item>
+    </string-array>
+
+    <string-array name="대전충청">
+        <item>상세지역선택</item>
+        <item>대전 서구</item>
+        <item>대전 유성구</item>
+        <item>대전 중구·동구·대덕구</item>
+        <item>청주 상당·청원구</item>
+        <item>청주 흥덕·서원구</item>
+        <item>천안 서북구</item>
+        <item>천안 동남구·아산</item>
+        <item>세종·충주</item>
+    </string-array>
+
+    <string-array name="부산울산경남">
+        <item>상세지역선택</item>
+        <item>해운대·센텀·기장</item>
+        <item>경성대·광안·수영</item>
+        <item>서면·부산진구·동구</item>
+        <item>동래·연산·부산대</item>
+        <item>남포·사상·북구</item>
+        <item>창원·마산·진해</item>
+        <item>김해·장유·양산</item>
+        <item>진주·거제·통영</item>
+        <item>울산</item>
+    </string-array>
+
+    <string-array name="대구경북">
+        <item>상세지역선택</item>
+        <item>수성구·경산</item>
+        <item>달서구·서구</item>
+        <item>동구·북구</item>
+        <item>중구·남구</item>
+        <item>팔공산·청도·가창</item>
+        <item>구미·경주·포항</item>
+        <item>그외 경북</item>
+
+    </string-array>
+
+    <string-array name="광주전라기타">
+        <item>상세지역선택</item>
+        <item>광주 서구</item>
+        <item>광주 북구·광산구</item>
+        <item>광주 동구·남구</item>
+        <item>전북 전주·군산·익산</item>
+        <item>전남 여수·순천·광양</item>
+        <item>강원 원주·춘천</item>
+        <item>제주</item>
+    </string-array>
+
+</resources>
