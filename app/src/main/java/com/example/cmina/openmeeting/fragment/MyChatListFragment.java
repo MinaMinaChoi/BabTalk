@@ -65,7 +65,7 @@ public class MyChatListFragment extends Fragment {
     //방별로 최신메시지와 시간을 알려주기 위한 커서.
     Cursor msgCursor;
     Cursor timeCursor;
-
+    Cursor typeCursor;
 
     //서비스에 바인드하기 위해서, ServiceConnection인터페이스를 구현하는 개체를 생성
     ServiceConnection serviceConnection = new ServiceConnection() {
@@ -168,27 +168,27 @@ public class MyChatListFragment extends Fragment {
                 String roomid = cursor.getString(cursor.getColumnIndex("roomid"));
                 msgCursor = myDatabaseHelper.getRecentMsg(roomid);
                 timeCursor = myDatabaseHelper.getRecentTime(roomid);
+                typeCursor = myDatabaseHelper.getRecentMsgType(roomid);
                 msgCursor.moveToFirst();
                 timeCursor.moveToFirst();
+                typeCursor.moveToFirst();
                 //cursor.getString() : 테이블의 실제 데이터 가져옴
                 //cursor.getColumnIndex() : 테이블의 해당 컬럼이름을 가져옴
-                if (msgCursor.getCount() != 0 && timeCursor.getCount() != 0) {
+                if (msgCursor.getCount() != 0 && timeCursor.getCount() != 0 && typeCursor.getCount() != 0) {
                     myChatListAdapter.addItem(cursor.getString(cursor.getColumnIndex("roomid")), cursor.getString(cursor.getColumnIndex("roomtitle")),
                             cursor.getString(cursor.getColumnIndex("imageurl")),
                             msgCursor.getString(msgCursor.getColumnIndex("msg")),
-                            timeCursor.getString(timeCursor.getColumnIndex("time")).substring(12));
+                            timeCursor.getString(timeCursor.getColumnIndex("time")).substring(12),
+                            typeCursor.getInt(typeCursor.getColumnIndex("type")));
                 } else {
                     myChatListAdapter.addItem(cursor.getString(cursor.getColumnIndex("roomid")), cursor.getString(cursor.getColumnIndex("roomtitle")),
                             cursor.getString(cursor.getColumnIndex("imageurl")),
                             "",
-                            "");
+                            "", 0);
                 }
 
                 myChatListAdapter.notifyDataSetChanged();
 
-              /*  Log.d("chat room table", cursor.getString(cursor.getColumnIndex("roomid")) + cursor.getString(cursor.getColumnIndex("roomtitle")) +
-                        cursor.getString(cursor.getColumnIndex("imageurl"))+ msgCursor.getString(msgCursor.getColumnIndex("msg"))+ timeCursor.getString(timeCursor.getColumnIndex("time")).substring(12));
-*/
             }
 
             mychatlistRecyclerview.addItemDecoration(new SimpleDividerItemDecoration(getContext()));
@@ -227,7 +227,13 @@ public class MyChatListFragment extends Fragment {
         @Override
         public void onBindViewHolder(MyChatListAdapter.ViewHolder holder, int position) {
             holder.chatTitle.setText(items.get(position).getRoomtitle());
-            holder.recent_msg.setText(items.get(position).getRecent_msg());
+            if (items.get(position).getRecent_msg_type() == 0) {
+                holder.recent_msg.setText(items.get(position).getRecent_msg());
+            } else if (items.get(position).getRecent_msg_type() == 1) {
+                holder.recent_msg.setText("이미지");
+            } else if (items.get(position).getRecent_msg_type() == 2) {
+                holder.recent_msg.setText("동영상");
+            }
             holder.recent_msg_time.setText(items.get(position).getRecent_msg_time());
             if (items.get(position).getImgurl().equals("")) {
                 Glide.with(context).load(R.drawable.userdefault).bitmapTransform(new CropCircleTransformation(context)).into(holder.chatImageView);
@@ -241,14 +247,15 @@ public class MyChatListFragment extends Fragment {
             return items.size();
         }
 
-        public void addItem(String roomid, String roomtitle, String imageurl, String recent_msg, String recent_time) {
-            ChatListItem item = new ChatListItem(roomid, roomtitle, imageurl, recent_msg, recent_time);
+        public void addItem(String roomid, String roomtitle, String imageurl, String recent_msg, String recent_time, int recent_type) {
+            ChatListItem item = new ChatListItem(roomid, roomtitle, imageurl, recent_msg, recent_time, recent_type);
 
             item.setRoomid(roomid);
             item.setRoomtitle(roomtitle);
             item.setImgurl(imageurl);
             item.setRecent_msg(recent_msg);
             item.setRecent_msg_time(recent_time);
+            item.setRecent_msg_type(recent_type);
 
             items.add(item);
 

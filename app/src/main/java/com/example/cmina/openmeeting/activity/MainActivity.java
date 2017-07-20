@@ -22,6 +22,7 @@ import com.example.cmina.openmeeting.fragment.MyPageFragment;
 import com.example.cmina.openmeeting.R;
 import com.example.cmina.openmeeting.service.SocketService;
 import com.example.cmina.openmeeting.utils.MyDatabaseHelper;
+import com.facebook.stetho.Stetho;
 
 
 /**
@@ -35,7 +36,6 @@ public class MainActivity extends AppCompatActivity {
 
     public static MyDatabaseHelper myDatabaseHelper;
     public static Cursor cursor;
-
 
     PageAdapter pageAdapter;
 
@@ -116,7 +116,9 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        //sqlite열기
+        Stetho.initializeWithDefaults(this);
+
+                //sqlite열기
         myDatabaseHelper = new MyDatabaseHelper(MainActivity.this);
         myDatabaseHelper.open();
 

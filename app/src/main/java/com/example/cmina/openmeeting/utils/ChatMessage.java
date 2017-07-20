@@ -8,18 +8,20 @@ public class ChatMessage {
 
     private String roomid;
     private String userid;
-    private String imgUrl;
+    private String profileImg;
     private String msg;
     private int msgtype;
     private String msgTime;
+    private String msgid;
 
-    public ChatMessage(String roomid, String imgUrl, String userid, String msg, String msgTime, int msgtype) {
+    public ChatMessage(String roomid, String profileImg, String userid, String msg, String msgTime, int msgtype, String msgid) {
         this.roomid = roomid;
-        this.imgUrl = imgUrl;
+        this.profileImg = profileImg;
         this.userid = userid;
         this.msg = msg;
         this.msgtype = msgtype;
         this.msgTime = msgTime;
+        this.msgid = msgid;
     }
 
     public void setRoomid(String string) {
@@ -30,12 +32,12 @@ public class ChatMessage {
         return roomid;
     }
 
-    public void setImgUrl(String url) {
-        imgUrl = url;
+    public void setProfileImg(String url) {
+        profileImg = url;
     }
 
-    public String getImgUrl() {
-        return imgUrl;
+    public String getProfileImg() {
+        return profileImg;
     }
 
     public void setUserid(String id) {
@@ -68,6 +70,14 @@ public class ChatMessage {
 
     public String getMsg() {
         return msg;
+    }
+
+    public void setMsgid(String msgid) {
+        this.msgid = msgid;
+    }
+
+    public String getMsgid() {
+        return msgid;
     }
 
 

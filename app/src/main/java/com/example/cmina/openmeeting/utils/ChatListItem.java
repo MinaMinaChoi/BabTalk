@@ -11,13 +11,15 @@ public class ChatListItem {
     private String imgurl;
     private String recent_msg;
     private String recent_msg_time;
+    private int recent_msg_type;
 
-    public ChatListItem(String roomid, String roomtitle, String imgurl, String recent_msg, String recent_msg_time) {
+    public ChatListItem(String roomid, String roomtitle, String imgurl, String recent_msg, String recent_msg_time, int recent_msg_type) {
         this.roomid = roomid;
         this.roomtitle = roomtitle;
         this.imgurl = imgurl;
         this.recent_msg = recent_msg;
         this.recent_msg_time = recent_msg_time;
+        this.recent_msg_type = recent_msg_type;
     }
 
     public void setRoomid(String id) {
@@ -40,6 +42,10 @@ public class ChatListItem {
         recent_msg_time = time;
     }
 
+    public void setRecent_msg_type(int type) {
+        recent_msg_type = type;
+    }
+
     public String getRoomid() {
         return roomid;
     }
@@ -58,5 +64,9 @@ public class ChatListItem {
 
     public String getRecent_msg_time() {
         return recent_msg_time;
+    }
+
+    public int getRecent_msg_type() {
+        return recent_msg_type;
     }
 }

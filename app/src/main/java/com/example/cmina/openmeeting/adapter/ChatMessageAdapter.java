@@ -2,13 +2,9 @@ package com.example.cmina.openmeeting.adapter;
 
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.media.Image;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
-import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -19,6 +15,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
@@ -31,9 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import jp.wasabeef.glide.transformations.CropCircleTransformation;
-
-import static android.R.attr.path;
-import static com.example.cmina.openmeeting.R.id.chatMessage;
 
 /**
  * Created by cmina on 2017-06-13.
@@ -75,6 +69,9 @@ public class ChatMessageAdapter extends BaseAdapter {
         ImageView chatImageView;
         ImageView videoImage;
 
+        ProgressBar progressBar;
+        ImageView sendfail;
+
     }
 
     @NonNull
@@ -98,6 +95,10 @@ public class ChatMessageAdapter extends BaseAdapter {
             viewHolder.profileImageView = (ImageView) view.findViewById(R.id.profileImage);
             viewHolder.chatImageView = (ImageView) view.findViewById(R.id.chatImg);
             viewHolder.videoImage = (ImageView) view.findViewById(R.id.videoplay);
+
+            viewHolder.progressBar = (ProgressBar) view.findViewById(R.id.progressBar);
+            viewHolder.sendfail = (ImageView) view.findViewById(R.id.sendfail);
+
             view.setTag(viewHolder);
 
         } else {
@@ -108,14 +109,16 @@ public class ChatMessageAdapter extends BaseAdapter {
         viewHolder.chatTimeTextView.setText(chatMessage.getMsgTime().substring(12));
         viewHolder.chatUseridTextView.setText(chatMessage.getUserid());
 
-        if (chatMessage.getImgUrl().equals("")) {
+        if (chatMessage.getProfileImg().equals("")) {
             Glide.with(context).load(R.drawable.userdefault).bitmapTransform(new CropCircleTransformation(context)).into(viewHolder.profileImageView);
         } else {
-            Glide.with(context).load(chatMessage.getImgUrl()).bitmapTransform(new CropCircleTransformation(context)).into(viewHolder.profileImageView);
+            Glide.with(context).load(chatMessage.getProfileImg()).bitmapTransform(new CropCircleTransformation(context)).into(viewHolder.profileImageView);
         }
 
         LinearLayout chatMsgContainer = (LinearLayout) view.findViewById(R.id.chatContainer);
 
+
+        //내가 보낸 메시지
         if (chatMessage.getUserid().equals(SaveSharedPreference.getUserid(context))) {
 
             viewHolder.profileImageView.setVisibility(View.GONE); //나의 이미지 안보이게
@@ -132,13 +135,24 @@ public class ChatMessageAdapter extends BaseAdapter {
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
                 viewHolder.videoImage.setVisibility(View.GONE);
                 viewHolder.chatImageView.setVisibility(View.VISIBLE);
-                Glide.with(context).load(chatMessage.getMsg()).into(viewHolder.chatImageView);
+                Glide.with(context).load(context.getFileStreamPath(chatMessage.getMsg())).into(viewHolder.chatImageView);
+///data/data/com.androidhuman.app/files/filename.ext
 
             } else {
+            /*    //다운로딩 중이면...
+                if (duringDownload) {
+                    viewHolder.progressBar.setVisibility(View.VISIBLE);
+                    viewHolder.videoImage.setVisibility(View.GONE);
+
+                } else {
+                    viewHolder.videoImage.setVisibility(View.VISIBLE);
+                    viewHolder.progressBar.setVisibility(View.GONE);
+                }*/
+
+                viewHolder.videoImage.setVisibility(View.VISIBLE);
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
                 viewHolder.chatImageView.setVisibility(View.VISIBLE);
-                viewHolder.videoImage.setVisibility(View.VISIBLE);
-                Bitmap image = ThumbnailUtils.createVideoThumbnail(chatMessage.getMsg(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                Bitmap image = ThumbnailUtils.createVideoThumbnail(""+context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
 
                 if (image != null) {
                     viewHolder.chatImageView.setImageBitmap(image);
@@ -159,7 +173,7 @@ public class ChatMessageAdapter extends BaseAdapter {
             viewHolder.chatMessageTextView.setText(chatMessage.getMsg());
             viewHolder.chatMessageTextView.setBackground(null);
 
-        } else {
+        } else { //다른 사람이 보낸 메시지
             viewHolder.profileImageView.setVisibility(View.VISIBLE);
             viewHolder.chatUseridTextView.setVisibility(View.VISIBLE);
 
@@ -175,12 +189,12 @@ public class ChatMessageAdapter extends BaseAdapter {
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
                 viewHolder.chatImageView.setVisibility(View.VISIBLE);
                 viewHolder.videoImage.setVisibility(View.GONE);
-                Glide.with(context).load(chatMessage.getMsg()).into(viewHolder.chatImageView);
+                Glide.with(context).load(context.getFileStreamPath(chatMessage.getMsg())).into(viewHolder.chatImageView);
             } else {  //동영상일 경우 섬네일이미지 셋팅.
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
                 viewHolder.chatImageView.setVisibility(View.VISIBLE);
                 viewHolder.videoImage.setVisibility(View.VISIBLE);
-                Bitmap image =ThumbnailUtils.createVideoThumbnail(chatMessage.getMsg() , android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                Bitmap image =ThumbnailUtils.createVideoThumbnail(""+context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
                 if (image != null) {
                     viewHolder.chatImageView.setImageBitmap(image);
                 } else {
@@ -192,15 +206,17 @@ public class ChatMessageAdapter extends BaseAdapter {
         }
 
 
+        //동영상일 경우, 썸네일을 클릭하면, 동영상 재생이 되도록!
         viewHolder.chatImageView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (chatMessage.getMsgtype() == 2) { //동영상일 경우
+                if (chatMessage.getMsgtype() == 2 ) { //동영상일 경우
                     Intent intent = new Intent();
                     intent.setAction(Intent.ACTION_VIEW);
-                    File videoFile = new File(chatMessage.getMsg());
+                    File videoFile = new File(""+context.getFileStreamPath(chatMessage.getMsg()));
+                    videoFile.setReadable(true, false); //읽을 수 있도록...
                     Uri uriFromVideoFile = Uri.fromFile(videoFile);
-                    Log.d("확인", "path : "+chatMessage.getMsg() + " uri : "+ uriFromVideoFile);
+                    Log.d("확인", "path : "+context.getFileStreamPath(chatMessage.getMsg()) + " uri : "+ uriFromVideoFile);
 
                     intent.setDataAndType(uriFromVideoFile, "video/*");
                     context.startActivity(intent);
@@ -212,15 +228,16 @@ public class ChatMessageAdapter extends BaseAdapter {
 
     }
 
-    public void addChatMsg(String roomid, String imgUrl, String userid, String msg, String msgTime, int msgtype) {
-        ChatMessage chatMessage = new ChatMessage(roomid, imgUrl, userid, msg,msgTime, msgtype);
+    public void addChatMsg(String roomid, String imgUrl, String userid, String msg, String msgTime, int msgtype, String msgid) {
+        ChatMessage chatMessage = new ChatMessage(roomid, imgUrl, userid, msg,msgTime, msgtype, msgid);
 
         chatMessage.setRoomid(roomid);
-        chatMessage.setImgUrl(imgUrl);
+        chatMessage.setProfileImg(imgUrl);
         chatMessage.setUserid(userid);
         chatMessage.setMsg(msg);
         chatMessage.setMsgTime(msgTime);
         chatMessage.setMsgtype(msgtype);
+        chatMessage.setMsgid(msgid);
 
         msgs.add(chatMessage);
 

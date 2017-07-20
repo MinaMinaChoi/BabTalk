@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Binder;
@@ -39,6 +40,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
@@ -48,10 +50,18 @@ import java.util.Date;
 
 import jp.wasabeef.glide.transformations.CropCircleTransformation;
 
+import static android.R.attr.left;
+import static android.R.attr.name;
 import static android.R.attr.path;
 import static com.example.cmina.openmeeting.R.id.useridTextView;
+import static com.example.cmina.openmeeting.activity.ChatActivity.duringDownload;
+import static com.example.cmina.openmeeting.activity.ChatActivity.getName;
+import static com.example.cmina.openmeeting.activity.ChatActivity.getRealPathFromUri;
+import static com.example.cmina.openmeeting.activity.ChatActivity.getUriId;
 import static com.example.cmina.openmeeting.activity.ChatActivity.now_room;
 
+import static com.example.cmina.openmeeting.activity.ChatActivity.uri;
+import static com.example.cmina.openmeeting.activity.MainActivity.cursor;
 import static com.example.cmina.openmeeting.activity.MainActivity.myDatabaseHelper;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_IMG;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MOVIE;
@@ -76,7 +86,8 @@ public class SocketService extends Service {
     public Socket socket;
     private boolean connected;
 
-    int left_packet = 0;
+    int left_packet_len = 0;
+    byte[] left_packet = null;
 
     public InputStream is;
     public OutputStream os;
@@ -137,7 +148,7 @@ public class SocketService extends Service {
 
     //콜백인터페이스 선언
     public interface ICallback {
-        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type); //액티비티에서 선언한 콜백함수
+        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type, String msgid); //액티비티에서 선언한 콜백함수
     }
 
     private ICallback mCallback;
@@ -162,7 +173,7 @@ public class SocketService extends Service {
                 lastReadTime = System.currentTimeMillis();
                 sendCheckTime = 0;
 
-                Log.d("소켓연결 시도" , "lastReadTime : "+lastReadTime + "// sendCheckTime : "+sendCheckTime);
+                Log.d("소켓연결 시도", "lastReadTime : " + lastReadTime + "// sendCheckTime : " + sendCheckTime);
 
                 if (socket != null) { //정상적으로 소켓 연결되었으면...
 
@@ -175,12 +186,19 @@ public class SocketService extends Service {
                     dos = new DataOutputStream(os);
 
                     //소켓접속하고 바로 userid보내기!
-                    // send_byte();
-                    //   Protocol protocol = new Protocol()
                     String userid = SaveSharedPreference.getUserid(getApplicationContext());
-                    dos.writeUTF(userid);
-                    Log.d("서버로 userid보냄", userid);
+                    //  dos.writeUTF(userid);
+                    //   Log.d("서버로 userid보냄", userid);
 
+                    //바로 sqlite에 저장된 최신메시지의 msgid 서버로 보냄.
+                    Cursor cursor = myDatabaseHelper.getRecentMsgID();
+                    cursor.moveToFirst();
+                    String msgid = "";
+                    if (cursor.getCount() > 0) {
+                        msgid = cursor.getString(cursor.getColumnIndex("msgid"));
+                    }
+                    dos.writeUTF(userid + "|" + msgid);
+                    Log.d("서버로 userid, msgid보냄", userid + msgid);
 
                 }
             } catch (UnknownHostException e) {
@@ -204,7 +222,7 @@ public class SocketService extends Service {
                         //제어하는 조건을 하나 더 추가해서
                         long checkTime = System.currentTimeMillis();
 
-                        if (checkTime - lastReadTime > 10000 && lastReadTime != 0) {
+                        if (checkTime - lastReadTime > 20000 && lastReadTime != 0) {
                             lastReadTime = 0;
                             protocol = new Protocol(PT_CHECK, 0);
                             protocol.setTotalLen("64");
@@ -214,7 +232,6 @@ public class SocketService extends Service {
                             sendCheckTime = System.currentTimeMillis();
                             Log.e("소켓연결 상태 체크 sendCheckTime", sendCheckTime + "");
                             send_byte(protocol.getPacket());
-
                         }
                     }
                 }
@@ -238,36 +255,34 @@ public class SocketService extends Service {
                         if (System.currentTimeMillis() - sendCheckTime > 10000 && sendCheckTime != 0) {
                             //소켓 끊김!
                             //while문 벗어나. 소켓 재연결.
-                            Log.d("소켓이상 감지", "끊고 다시  " );
+                            Log.d("소켓이상 감지", "끊고 다시  ");
                             break;
                         }
 
                         try {
                             //받은 크기가 최소, 4바이트(32) 이상 되는지 확인하는 로직 추가하기!!
-                            if (is.available() <= 0 && left_packet <= 0) { //읽을 게 없으면, 밑에 부분 실행하지 않고, 위에 while(ture) 로 가기
+                            if (is.available() <= 32/* && left_packet.length <= 32*/) { //읽을 게 없으면, 밑에 부분 실행하지 않고, 위에 while(ture) 로 가기
                                 continue;
                             }
 
                             //마지막으로 메시지를 받은 시간.
                             lastReadTime = System.currentTimeMillis();
-                            Log.d("실제 데이터 마지막으로 받은 시간 : ", ""+ lastReadTime);
+                            Log.d("실제 데이터 마지막으로 받은 시간 : ", "" + lastReadTime);
                             //메시지를 받으면 sendCheckTime을 0으로 초기화.
                             sendCheckTime = 0;
 
                             System.out.println("인풋스트림 크기 : " + is.available());
+                            System.out.println("left_packet 크기 : " + left_packet_len);
 
                             //////////////////
                             //이전에 받은 패킷이 남아있다면
                             //left_packet 이 있을 때와 없을 때 아예 나눠서.,..
-                            if (left_packet > 0) {
-
-                                protocol = new Protocol(left_packet);
+                            //  if (left_packet != null) {
+                            if (left_packet_len > 0) {
+                                protocol = new Protocol(left_packet.length);
                                 buf = protocol.getPacket();
-                                Log.d("남은 패킷 길이 : ", "" + left_packet + "// buf.getPacket 의 길이" + buf.length);
+                                Log.d("남은 패킷 길이 : ", "" + left_packet_len + "// buf.getPacket 의 길이" + buf.length);
 
-                                left_packet = 0; //다시 0으로 초기화
-
-                                //********
                                 is.read(buf);
 
                                 int total_len = Integer.parseInt(protocol.getTotalLen()); //받아야할 길이
@@ -281,6 +296,13 @@ public class SocketService extends Service {
                                     protocol.setPacket2(total_len, buf);
                                 } else {
                                     protocol.setPacket(total_len, buf); //total크기의 바이트배열에다가 지금까지 받은 buf(바이트배열)을 복사하고,
+                                    //만약 더 받았으면 나머지는 다음 패킷으로 넘기기
+                                    left_packet = new byte[recv_len - total_len];
+                                    left_packet_len = recv_len - total_len;
+                                    System.arraycopy(buf, total_len, left_packet, 0, recv_len - total_len);
+                                    //남은패킷 분석하는 부분...들어가야겠네.....흠...
+                                    //새로 들어오는 데이터가 없으면 while문이 돌지 않네....
+
                                 }
 
                                 //총길이보다 덜 받았을 때...
@@ -300,18 +322,18 @@ public class SocketService extends Service {
                                             recv_len += recv_cnt; //읽은 데이터 길이를 더한다.
                                         } else {
                                             protocol.addPacket2(total_len, recv_len, buf);
+
+                                            left_packet = new byte[recv_len - total_len];
+                                            left_packet_len = recv_len - total_len;
+
+                                            System.arraycopy(buf, total_len, left_packet, 0, recv_len - total_len);
+
                                             recv_len += (total_len - recv_len); //읽은 데이터 길이를 더한다.
 
-                                            left_packet = recv_cnt - (total_len - recv_len);
-
-                                            //   left_packet = buf.length - (total_len - recv_len);
                                         }
                                         System.out.println("지금까지 읽은 데이터 길이 : " + recv_len);
                                     }
                                 }
-                                //*************
-
-
                             } else {
                                 //버퍼에 담긴 만큼의 바이트배열 생성.
                                 protocol = new Protocol(is.available());
@@ -325,29 +347,23 @@ public class SocketService extends Service {
                                 int total_len = Integer.parseInt(protocol.getTotalLen()); //전체 길이
                                 //   int PT_type = Integer.parseInt(protocol.getProtocolType()); //프로토콜타입
 
-                                //만약에 이미지 전송중이면,
-                                //바로바로 temp파일에 넣기!
-
-                            /*    if (PT_type == PT_CHAT_IMG) {
-
-                                    //다받으면.
-
-                                } else {
-                                    //나머지는 원래받던대로.
-                                    //총길이만큼 다 받아서 분석.
-
-
-                                }*/
-
                                 int recv_len = buf.length; //받은 길이
                                 int recv_cnt = 0;
 
                                 System.out.println("left 0일 떄, 인풋스트림 읽기시작 받아야할 길이 : " + total_len + "//buf.length" + recv_len);
 
-                                if (total_len > recv_len) { //받아야할 길이가 받은 길이보다 크면,
+                                if (total_len >= recv_len) { //받아야할 길이가 받은 길이보다 크면,
                                     protocol.setPacket2(total_len, buf);
                                 } else {
                                     protocol.setPacket(total_len, buf); //total크기의 바이트배열에다가 지금까지 받은 buf(바이트배열)을 복사하고,
+
+                                    //남은 패킷은....?
+                                    left_packet = new byte[recv_len - total_len];
+                                    left_packet_len = recv_len - total_len;
+
+                                    System.arraycopy(buf, total_len, left_packet, 0, recv_len - total_len);
+                                    //남은 left_packet을 분석하는게 여기에 와야하네.
+                                    //만약, 서버로부터 오는 새로운 메시지가 없다면..... 위에....
                                 }
 
                                 //총길이보다 덜 받았을 때...
@@ -358,19 +374,25 @@ public class SocketService extends Service {
                                         System.out.println("left 0일 떄, 계속 읽는 중" + is.available());
 
                                         recv_cnt = is.read(buf); //인풋스트림에서 읽어와서 buf바이트배열에 담는다.
-                                        System.out.println("left 0일 떄, 더 읽은 데이터 길이 : " + recv_cnt);
+                                        //System.out.println("left 0일 떄, 더 읽은 데이터 길이 : " + recv_cnt);
 
                                         //남은 길이 비교해서,
                                         //남은길이가 더 크면
                                         if ((total_len - recv_len) >= recv_cnt) {
+                                            Log.d("(total_len - recv_len) >= recv_cnt)", "받아야할 길이 >= 받은 길이" + recv_cnt);
                                             protocol.addPacket(recv_len, buf);
                                             recv_len += recv_cnt; //읽은 데이터 길이를 더한다.
                                         } else {
-                                            protocol.addPacket2(total_len, recv_len, buf);
-                                            recv_len += (total_len - recv_len); //읽은 데이터 길이를 더한다.
 
-                                            // left_packet = buf.length - (total_len - recv_len);
-                                            left_packet = recv_cnt - (total_len - recv_len);
+                                            Log.d("else", "받아야할 길이 < 받은 길이" + recv_cnt);
+
+                                            protocol.addPacket2(total_len, recv_len, buf);
+
+                                            left_packet = new byte[recv_cnt - (total_len - recv_len)]; //20070
+                                            left_packet_len = recv_cnt - (total_len - recv_len);
+                                            System.arraycopy(buf, (total_len - recv_len), left_packet, 0, recv_cnt - (total_len - recv_len));
+
+                                            recv_len += (total_len - recv_len); //읽은 데이터 길이를 더한다.
                                         }
 
                                         System.out.println("left 0일 떄, 지금까지 읽은 데이터 길이 : " + recv_len);
@@ -383,6 +405,93 @@ public class SocketService extends Service {
                             int packetType = Integer.parseInt(protocol.getProtocolType());
 
                             inmessage(packetType, protocol);
+
+                            boolean whileCheck = false;
+
+                            while (left_packet_len > 0 && !whileCheck) { //while문이 계속 도네..
+                                //남은 패킷이 있다면 분리해서 분석하기.
+                                //단순히 남은패킷의 길이정보만 담은 left_packet.
+                                //남은 바이트배열을 담을 것이 필요!!!
+                                protocol = new Protocol(left_packet.length);
+                                //남은 패킷을 그 길이 만큼 바이트배열을 만들어서 붙이기.
+                                protocol.setPacket(left_packet.length, left_packet);
+                                buf = protocol.getPacket();
+                                System.out.println("남은 패킷 길이" + buf.length);
+
+                                int total_len = Integer.parseInt(protocol.getTotalLen()); //받아야할 길이
+
+                                int recv_len = buf.length; //받은 길이
+                                int recv_cnt = 0;
+
+                                System.out.println("while 인풋스트림 읽기시작 받아야할 길이 : " + total_len + "//buf.length" + recv_len);
+
+                                if (total_len >= recv_len) { //받아야할 길이가 받은 길이보다 크거나 같으면,
+                                    protocol.setPacket2(total_len, buf);
+                                    Log.d("while문 total_len >= recv_len", total_len + "/" + recv_len);
+
+                                    left_packet = new byte[0];
+
+                                    whileCheck = true;
+
+                                } else {
+                                    protocol.setPacket(total_len, buf); //total크기의 바이트배열에다가 지금까지 받은 buf(바이트배열)을 복사하고,
+
+                                    //만약 더 받았으면 나머지는 다음 패킷으로 넘기기
+                                    left_packet = new byte[recv_len - total_len];
+
+                                    left_packet_len = recv_len - total_len;
+
+                                    System.arraycopy(buf, total_len, left_packet, 0, recv_len - total_len);
+
+                                    whileCheck = false;
+
+                                    Log.d("while문", total_len + "/" + recv_len);
+
+                                }
+
+                                //총길이보다 덜 받았을 때...
+                                while (recv_len < total_len) {
+                                    if (is.available() > 0) {
+
+                                        buf = new byte[is.available()];
+                                        System.out.println("while계속 읽는 중" + is.available());
+
+                                        recv_cnt = is.read(buf); //인풋스트림에서 읽어와서 buf바이트배열에 담는다.
+                                        System.out.println("while더 읽은 데이터 길이 : " + recv_cnt);
+
+                                        //남은 길이 비교해서,
+                                        //남은길이가 더 크면
+                                        if ((total_len - recv_len) >= recv_cnt) {
+                                            protocol.addPacket(recv_len, buf);
+                                            recv_len += recv_cnt; //읽은 데이터 길이를 더한다.
+
+                                            left_packet = new byte[0];
+
+                                            whileCheck = true;
+
+                                        } else {
+                                            protocol.addPacket2(total_len, recv_len, buf);
+                                            recv_len += (total_len - recv_len); //읽은 데이터 길이를 더한다.
+
+                                            left_packet = new byte[recv_len - total_len];
+                                            left_packet_len = recv_len - total_len;
+
+                                            System.arraycopy(buf, total_len, left_packet, 0, recv_len - total_len);
+
+                                            whileCheck = false;
+
+                                        }
+                                        System.out.println("while지금까지 읽은 데이터 길이 : " + recv_len);
+                                    }
+                                } //총길이만큼 받는 것!
+
+                                int packetType1 = Integer.parseInt(protocol.getProtocolType());
+                                //while 계속 돌아서 계속 입력 될때가 있네...
+                                inmessage(packetType1, protocol);
+
+                            }
+
+                            //}
 
                         } catch (IOException e) {
 
@@ -426,34 +535,30 @@ public class SocketService extends Service {
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd, a hh:mm");
         String time = simpleDateFormat.format(date).toString();//.substring(12);
 
-        // String msgtype = protocol.getMsgType();
         String roomid = protocol.getRoomid().trim();
         String totalLen = protocol.getTotalLen().trim();
-        // String dataLength = protocol.getDataLength().trim();
         String userid = protocol.getUserid().trim();
+        String userimg = "";
+
         int type;
+        String msgID = "";
+        String msg = "";
+
 
         switch (protocoltype) {
 
             //일반 메시지 일때ㄹ
             case PT_CHAT_MSG:
-
                 //sqlite에 넣을 msgtype
-                type = 0;
-
-
-                String userimg = protocol.getUserimg().trim();
-                String msg = null;
-                //  if (msgtype.equals(Message)) {
-                type = 0;
+                userimg = protocol.getUserimg().trim();
                 msg = protocol.getMsg();
+                msgID = protocol.getMsgId();
+                type = 0;
+                Log.e("받은 chat", "total=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msg);
 
-                Log.e("chat 확인", "total=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msg);
-
-                //   }
                 //여기서 sqlite에 저장해야해.
-                myDatabaseHelper.insertChatlogs(SaveSharedPreference.getUserid(getApplicationContext()), roomid, userid, userimg,
-                        msg, time, type);
+                myDatabaseHelper.insertChatlogs(roomid, userid, userimg,
+                        msg, time, type, msgID);
 
                 //실시간으로 해당 방에 있을 때는....바로바로 업데이트
                 //내가 지금 있는 방이 어디인지를 파악해서,
@@ -463,7 +568,7 @@ public class SocketService extends Service {
                     // adapter.addChatMsg(roomid, userimg, userid, msg, time, type);
                     //addHandler();
                     //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
-                    mCallback.recvMsg(roomid, userimg, userid, msg, time, type);
+                    mCallback.recvMsg(roomid, userimg, userid, msg, time, type, msgID);
                     Log.d("확인", roomid + userid);
 
                 } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
@@ -475,48 +580,39 @@ public class SocketService extends Service {
                     }
                 }
 
-
                 break;
 
             //이미지 메시지 일때
             case PT_CHAT_IMG:
 
-                String userimg1 = protocol.getUserimg().trim();
-                String msg1 = null;
-
-                //    if (msgtype.equals(IMG)) {
-                //이미지일때
                 type = 1;
-
+                userimg = protocol.getUserimg().trim();
+                msgID = protocol.getMsgId();
                 long curr = System.currentTimeMillis();  // 또는 System.nanoTime();
-                //외부저장소
-                msg1 = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + curr + ".jpg";
+/*                //외부저장소
+                msg = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + curr + ".jpg";
 
-                //내부저장소. 나의 앱에서만 사용할 수 있도록
-                //  msg = getFilesDir()+"/"+curr+".jpg";
-
-                File file = new File(msg1);
+                File file = new File(msg);
                 FileOutputStream fos = null;
                 try {
                     fos = new FileOutputStream(file);
                 } catch (FileNotFoundException e) {
                     e.printStackTrace();
                 }
+
                 BufferedOutputStream bos = new BufferedOutputStream(fos);
 
                 try {
                     //D/skia: --- decoder->decode returned false
                     //해결을 위해서...
                     //이미지를 다 셋팅하기 전에 디코더를 닫아버리는데서 발생하는 문제.
-                    Thread.sleep(1500);
+                   // Thread.sleep(1500);
                     //바이트배열을...파일에 저장하기
-                    bos.write(protocol.getImg(Integer.parseInt(totalLen) - 113), 0, Integer.parseInt(totalLen) - 113);
+                    bos.write(protocol.getImg(Integer.parseInt(totalLen) - 123), 0, Integer.parseInt(totalLen) - 123);
 
                 } catch (IOException e) {
                     e.printStackTrace();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } finally {
+                }  finally {
                     try {
                         bos.flush();
                         bos.close();
@@ -526,28 +622,49 @@ public class SocketService extends Service {
                     }
 
                 }
-                Log.e("받은 IMG 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg1 + "/" + protocol.getImg(Integer.parseInt(totalLen.trim()) - 113));
-                // }
+                Log.d("받은 IMG 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + protocol.getImg(Integer.parseInt(totalLen.trim()) - 123));*/
+
+                msg = curr + ".jpg";
+                FileOutputStream fileOutputStream = null;
+                BufferedOutputStream bos = null;
+                //내장 저장소로 저장 시도
+                try {
+                    fileOutputStream = openFileOutput(msg, Context.MODE_PRIVATE);
+                    bos = new BufferedOutputStream(fileOutputStream);
+                    bos.write(protocol.getImg(Integer.parseInt(totalLen) - 133), 0, Integer.parseInt(totalLen) - 133);
+
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        bos.flush();
+                        bos.close();
+                        fileOutputStream.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
 
                 //여기서 sqlite에 저장해야해.
-                myDatabaseHelper.insertChatlogs(SaveSharedPreference.getUserid(getApplicationContext()), roomid, userid, userimg1,
-                        msg1, time, type);
+                myDatabaseHelper.insertChatlogs(roomid, userid, userimg,
+                        msg, time, type, msgID);
+                Log.d("받은 IMG 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msgID);
 
                 //실시간으로 해당 방에 있을 때는....바로바로 업데이트
                 //내가 지금 있는 방이 어디인지를 파악해서,
                 //그방에게 전해지는 메시지만.....adapter에 add되도록...
                 if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
 
-                    // adapter.addChatMsg(roomid, userimg, userid, msg, time, type);
-                    //addHandler();
                     //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
-                    mCallback.recvMsg(roomid, userimg1, userid, msg1, time, type);
+                    mCallback.recvMsg(roomid, userimg, userid, msg, time, type, msgID);
                     Log.d("확인", roomid + userid);
 
                 } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
                     if (!userid.equals("알림")) {
-                        sendNotification(userimg1, userid, "사진", roomid, time.substring(12));
-                        showCustomToast(userid, userimg1, "사진");
+                        sendNotification(userimg, userid, "이미지", roomid, time.substring(12));
+                        showCustomToast(userid, userimg, "이미지");
 
                     }
                 }
@@ -556,18 +673,38 @@ public class SocketService extends Service {
 
             //동영상 전송
             case PT_CHAT_MOVIE:
-
-                String userimg2 = protocol.getUserimg().trim();
-                String msg2 = null;
-
+                userimg = protocol.getUserimg();
+                msgID = protocol.getMsgId();
+                msg = protocol.getFileName();
                 //동영상일 때
                 type = 2;
 
-                long curr1 = System.currentTimeMillis();  // 또는 System.nanoTime();
-                //외부저장소
-                msg2 = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + curr1 + ".mp4";
+                //내부저장소로 변경해보자
+                FileOutputStream fos = null;
+                BufferedOutputStream bos1 = null;
+                //내장 저장소로 저장 시도
+                try {
+                    fos = openFileOutput(msg, Context.MODE_PRIVATE);
+                    bos1 = new BufferedOutputStream(fos);
+                    bos1.write(protocol.getVideo(Integer.parseInt(totalLen) - 233), 0, Integer.parseInt(totalLen) - 233);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        bos1.flush();
+                        bos1.close();
+                        fos.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
 
-                File file1 = new File(msg2);
+/*                //외부저장소
+                msg = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + msg;
+
+                File file1 = new File(msg);
                 FileOutputStream fos1 = null;
                 try {
                     fos1 = new FileOutputStream(file1);
@@ -578,15 +715,12 @@ public class SocketService extends Service {
 
                 try {
                     //D/skia: --- decoder->decode returned false
-                    //해결을 위해서...
-                    //이미지를 다 셋팅하기 전에 디코더를 닫아버리는데서 발생하는 문제.
-                    Thread.sleep(1500);
+                    //해결을 위해서...   //이미지를 다 셋팅하기 전에 디코더를 닫아버리는데서 발생하는 문제.
+                    // Thread.sleep(1500);
                     //바이트배열을...파일에 저장하기
-                    bos1.write(protocol.getVideo(Integer.parseInt(totalLen) - 213), 0, Integer.parseInt(totalLen) - 213);
+                    bos1.write(protocol.getVideo(Integer.parseInt(totalLen) - 233), 0, Integer.parseInt(totalLen) - 233);
 
                 } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (InterruptedException e) {
                     e.printStackTrace();
                 } finally {
                     try {
@@ -598,26 +732,25 @@ public class SocketService extends Service {
                     }
 
                 }
-                Log.e("동영상 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg2 + "/" + msg2);
-                // }
+                Log.e("동영상 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msg);*/
 
                 //여기서 sqlite에 저장해야해.
-                myDatabaseHelper.insertChatlogs(SaveSharedPreference.getUserid(getApplicationContext()), roomid, userid, userimg2,
-                        msg2, time, type);
-
+                duringDownload = false;
+                myDatabaseHelper.insertChatlogs(roomid, userid, userimg,
+                        msg, time, type, msgID);
+                Log.d("동영상 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msg + "/" + msgID);
                 //실시간으로 해당 방에 있을 때는....바로바로 업데이트
                 //내가 지금 있는 방이 어디인지를 파악해서,
                 //그방에게 전해지는 메시지만.....adapter에 add되도록...
                 if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
                     //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
-                    mCallback.recvMsg(roomid, userimg2, userid, msg2, time, type);
+                    mCallback.recvMsg(roomid, userimg, userid, msg, time, type, msgID);
                     Log.d("확인", roomid + userid);
 
                 } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
                     if (!userid.equals("알림")) {
-                        sendNotification(userimg2, userid, "동영상", roomid, time.substring(12));
-                        showCustomToast(userid, userimg2, "동영상");
-
+                        sendNotification(userimg, userid, "동영상", roomid, time.substring(12));
+                        showCustomToast(userid, userimg, "동영상");
                     }
                 }
 
@@ -625,7 +758,40 @@ public class SocketService extends Service {
 
             //파일중단시 중단위치 체크해서 보내주면, 그 위치부터 파일 재전송!!!
             case PT_OFFSET:
+                int offset = Integer.parseInt(protocol.getOffSet());
 
+                if (!uri.toString().equals("")) { //uri가 빈값이 아니면
+
+                    String name = getName(this, uri);
+                    String path = getRealPathFromUri(SocketService.this, uri);
+
+                    File oFile = new File(path);
+                    long lFileSize = oFile.length();
+                    int filesize = (int) (long) lFileSize;
+
+                    Log.d("이어받기 동영상 파일크기", lFileSize + "//" + offset);
+
+                    Protocol protocol2 = new Protocol(filesize + 233 - offset); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
+                    protocol2.setTotalLen(String.valueOf(filesize + 233 - offset));
+                    protocol2.setProtocolType(String.valueOf(PT_CHAT_MOVIE));
+                    protocol2.setRoomid(now_room);
+                    protocol2.setUserid(SaveSharedPreference.getUserid(SocketService.this));
+                    protocol2.setUserimg(SaveSharedPreference.getUserimage(SocketService.this));
+                    protocol2.setFileName(name);
+
+                    protocol2.sendVideo(path, offset);
+
+                    send_byte(protocol2.getPacket());
+
+                    Log.e("동영상 보내기 확인", now_room + uri + filesize + "// 파일이름 : " + name);
+
+                    String uriId = getUriId(this, uri);
+                    Log.e("###", "실제경로 : " + path + "\n파일명 : " + name + "\nuri : " + uri.toString() + "\nuri id : " + uriId);
+
+                }
+
+                //uri값을 다시 널로!
+                uri = null;
 
                 break;
 

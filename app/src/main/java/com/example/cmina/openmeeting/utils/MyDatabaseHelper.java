@@ -41,11 +41,13 @@ public class MyDatabaseHelper {
 
     private String chat_logs_create = "CREATE TABLE chat_logs (_id Integer primary key autoincrement, "
             + "roomid VARCHAR(20) not null, "
-            + "myid VARCHAR(20) not null, "
+            //myid는 로그인한 userid에 따라서 방의 채팅내용을 가져올 때 사용. 하나의 디바이스로 user1, user2가 사용한다 치면... ==> 아니다..이럴경우 없다... 하나의 디바이스에 한 유저만 사용하도록..
+           // + "myid VARCHAR(20) not null, "
             + "userid VARCHAR(20) not null, "
             + "userimg VARCHAR(50), "
             + "msg text not null, "
             + "time long not null, "
+            + "msgid long not null, "
             + "type Integer default 0);";
 
     private String friends_create = "CREATE TABLE friends (_id integer primary key autoincrement, "
@@ -98,16 +100,17 @@ public class MyDatabaseHelper {
 
 
     //테이블별로 인서트메소드 만들기.
-    public long insertChatlogs(String myid, String roomid, String userid, String userimg, String msg, String created_at, Integer type) {
+    public long insertChatlogs(String roomid, String userid, String userimg, String msg, String created_at, Integer type, String msgid) {
 
         ContentValues values = new ContentValues();
-        values.put("myid", myid);
+       // values.put("myid", myid);
         values.put("roomid", roomid);
         values.put("userid", userid);
         values.put("userimg", userimg);
         values.put("msg", msg);
         values.put("time", created_at);
         values.put("type", type);
+        values.put("msgid", msgid);
 
         return sqLiteDatabase.insert(chat_logs_table, null, values);
 
@@ -171,12 +174,24 @@ public class MyDatabaseHelper {
         return c;
     }
 
+    //해당방의 최신메시지의 타입을 가져오는
+    public Cursor getRecentMsgType(String roomid) {
+        Cursor cursor = sqLiteDatabase.rawQuery("SELECT type FROM chat_logs WHERE roomid='"+roomid+"' order by _id desc limit 1", null);
+        return cursor;
+    }
+
+    //채팅로그의 최신 msgid를 가져오는
+    public Cursor getRecentMsgID() {
+        Cursor cursor = sqLiteDatabase.rawQuery("SELECT msgid FROM chat_logs order by _id desc limit 1", null);
+        return cursor;
+    }
+
 
 
     //해당 방의 대화내용 전부 가져오는
-    public Cursor getChatMsg(String roomid, String myid) {
+    public Cursor getChatMsg(String roomid) {
 
-        Cursor cursor = sqLiteDatabase.rawQuery("SELECT * FROM " + chat_logs_table + " WHERE roomid='" + roomid + "' and myid='" + myid + "'", null);
+        Cursor cursor = sqLiteDatabase.rawQuery("SELECT * FROM " + chat_logs_table + " WHERE roomid='" + roomid + "'", null);
         return cursor;
 
     }

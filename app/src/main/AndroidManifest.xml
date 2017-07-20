@@ -4,7 +4,7 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/babtalk"
         android:label="같이 밥먹자"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
@@ -25,29 +25,6 @@
         //stopWithTask true로하면 ontaskRemoved 호출되지 않는다.
         <service android:name=".service.SocketService"
             android:stopWithTask="false"></service>
-
-        <!--
-                <service android:name=".service.PersistentService"
-                    android:enabled="true"
-                    android:process=":remote">
-                </service>
-        -->
-        <!--
-
-                <receiver android:name=".broadcastreceiver.RestartService"
-                    android:enabled="true"
-                    android:exported="false"
-                    android:label="RestartService"
-                    android:process=":remote">
-
-                    <intent-filter>
-                  &lt;!&ndash;      <action android:name="android.intent.action.BOOT_COMPLETED"/>&ndash;&gt;
-                        <action android:name="ACTION.RESTART.SocketService" />
-                    </intent-filter>
-
-                </receiver>
-        -->
-
 
     </application>
 

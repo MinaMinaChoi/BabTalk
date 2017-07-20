@@ -43,7 +43,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:id="@+id/sendImage"
-                android:background="@drawable/image"/>
+                android:background="@drawable/picture"/>
 
             <EditText
                 android:id="@+id/chatMessageEditText"
@@ -57,9 +57,9 @@
                 android:id="@+id/sendBtn"
                 android:textColor="#fff"
                 android:textStyle="bold"
-                android:background="@drawable/btnround"
+                android:background="@drawable/btnunable"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
+                android:layout_height="32dp"
                 android:text="보내기" />
 
         </LinearLayout>

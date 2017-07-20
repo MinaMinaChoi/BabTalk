@@ -48,14 +48,16 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import static android.R.attr.name;
+import static android.R.attr.type;
 import static android.os.Environment.getExternalStoragePublicDirectory;
 
 import static com.example.cmina.openmeeting.activity.MainActivity.cursor;
 import static com.example.cmina.openmeeting.activity.MainActivity.myDatabaseHelper;
 import static com.example.cmina.openmeeting.service.SocketService.inRoom;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_IMG;
-import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MOVIE;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MSG;
+import static com.example.cmina.openmeeting.utils.Protocol.PT_OFFSET;
 
 /**
  * Created by cmina on 2017-06-13.
@@ -63,15 +65,18 @@ import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MSG;
 
 public class ChatActivity extends AppCompatActivity {
 
+    //파일 다운로드 중이면
+    public static boolean duringDownload;
+
+    //파일 이어받기를 위한 static
+    public static Uri uri;
+
     public SocketService socketService; //연결할 서비스
     public boolean IsBound;
 
     final static int REQ_CODE_SELECT_IMAGE = 3001;
     final static int REQUEST_IMAGE_CAPTURE = 4001;
     final static int REQ_CODE_SELECT_MOVIE = 5001;
-
-    //mainactivity에서 여기의 callback함수를 호출하기 위해서
-    public static Context mContext;
 
     Uri mCurrentPhotoPath;
 
@@ -202,7 +207,7 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     // 파일명 찾기
-    private String getName(Context context, Uri uri) {
+    public static String getName(Context context, Uri uri) {
         String[] projection = {MediaStore.Images.ImageColumns.DISPLAY_NAME};
         Cursor cursor = context.getContentResolver().query(uri, projection, null, null, null);
         int column_index = cursor
@@ -212,7 +217,7 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     // uri 아이디 찾기
-    private String getUriId(Context context, Uri uri) {
+    public static String getUriId(Context context, Uri uri) {
         String[] projection = {MediaStore.Images.ImageColumns._ID};
         Cursor cursor = context.getContentResolver().query(uri, projection, null, null, null);
         int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.ImageColumns._ID);
@@ -237,14 +242,13 @@ public class ChatActivity extends AppCompatActivity {
                 Log.d("이미지 파일크기", lFileSize + "//" + filesize);
 
                 //이미지 파일....소켓으로 전달.
-                Protocol protocol = new Protocol(filesize + 113); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
+                Protocol protocol = new Protocol(filesize + 133); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
                 protocol.setProtocolType(String.valueOf(PT_CHAT_IMG));
-                // protocol.setMsgType(IMG);
                 protocol.setRoomid(now_room);
                 protocol.setUserid(SaveSharedPreference.getUserid(ChatActivity.this));
                 protocol.setUserimg(SaveSharedPreference.getUserimage(ChatActivity.this));
                 protocol.sendImage(getRealPathFromUri(ChatActivity.this, uri));
-                protocol.setTotalLen(String.valueOf(filesize + 113));
+                protocol.setTotalLen(String.valueOf(filesize + 133));
 
                 socketService.send_byte(protocol.getPacket());
 
@@ -267,14 +271,14 @@ public class ChatActivity extends AppCompatActivity {
                     Log.d("이미지 파일크기", lFileSize + "//" + filesize);
 
                     //이미지 파일....소켓으로 전달.
-                    Protocol protocol = new Protocol(filesize + 113); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
+                    Protocol protocol = new Protocol(filesize + 133); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
                     protocol.setProtocolType(String.valueOf(PT_CHAT_IMG));
                     //   protocol.setMsgType(IMG);
                     protocol.setRoomid(now_room);
                     protocol.setUserid(SaveSharedPreference.getUserid(ChatActivity.this));
                     protocol.setUserimg(SaveSharedPreference.getUserimage(ChatActivity.this));
                     protocol.sendImage(photoPath);
-                    protocol.setTotalLen(String.valueOf(filesize + 113));
+                    protocol.setTotalLen(String.valueOf(filesize + 133));
 
                     socketService.send_byte(protocol.getPacket());
 
@@ -291,14 +295,36 @@ public class ChatActivity extends AppCompatActivity {
         if (requestCode == REQ_CODE_SELECT_MOVIE && resultCode == RESULT_OK) {
             if (data != null) {
                 //서버로 보내기!
-                Uri uri = data.getData();
-                Log.d("video uri", uri + "현재 속한 채팅방" + now_room);
+                //->서버로 보내기 전에 파일이름만 먼저 보내서,
+                //혹시 파일받기를 하다가 중단한 적이 있는가를 탐색.
+                //uri는 저장해 두었다가
+                //해당 위치에서부터 파일보내도록 하기...
+                //일단 동영상 썸네일 세팅? 그 위에 프로그레스바올리기?
+                uri = data.getData();
 
+                duringDownload = true;
+
+               /* adapter.addChatMsg(now_room, SaveSharedPreference.getUserimage(ChatActivity.this), SaveSharedPreference.getUserid(ChatActivity.this), uri.toString(), "", 2, "");
+                addHandler();
+*/
                 String name = getName(this, uri);
-
                 String path = getRealPathFromUri(ChatActivity.this, uri);
 
-                File oFile = new File(path);
+                //********************
+                Protocol protocol1 = new Protocol(233);
+                protocol1.setTotalLen(String.valueOf(233));
+                protocol1.setProtocolType(String.valueOf(PT_OFFSET));
+                protocol1.setRoomid(now_room);
+                protocol1.setUserid(SaveSharedPreference.getUserid(ChatActivity.this));
+                protocol1.setFileName(name);
+
+                socketService.send_byte(protocol1.getPacket());
+
+                Log.e("###", "실제경로 : " + path + "\n파일명 : " + name + "\nuri : " + uri.toString() );
+
+                //********************
+
+               /* File oFile = new File(path);
                 long lFileSize = oFile.length();
                 int filesize = (int) (long) lFileSize;
 
@@ -313,13 +339,12 @@ public class ChatActivity extends AppCompatActivity {
                 protocol.setFileName(name);
                 protocol.sendVideo(getRealPathFromUri(ChatActivity.this, uri));
 
-
                 socketService.send_byte(protocol.getPacket());
 
                 Log.e("동영상 보내기 확인", now_room + uri + filesize + "// 파일이름 : "+name);
 
                 String uriId = getUriId(this, uri);
-                Log.e("###", "실제경로 : " + path + "\n파일명 : " + name + "\nuri : " + uri.toString() + "\nuri id : " + uriId);
+                Log.e("###", "실제경로 : " + path + "\n파일명 : " + name + "\nuri : " + uri.toString() + "\nuri id : " + uriId);*/
 
             }
         }
@@ -385,13 +410,13 @@ public class ChatActivity extends AppCompatActivity {
 
     //서비스에서 아래의 콜백함수를 호출하며, 콜백함수에서는 액티비티에서 처리할 내용입력
     public SocketService.ICallback callback = new SocketService.ICallback() {
-        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type) {
+        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type, String msgid) {
             //처리할 일들
             //메시지 받아서 어댑터에 셋팅
             //흠..어차피 adapter는 chatactivity에 있네..흠.
             //메인액티비티에서 서비스에 바인드 하는데,
             Log.d("recvMsg", "콜백함수 불림");
-            adapter.addChatMsg(roomid, userimg, userid, msg, time, type);
+            adapter.addChatMsg(roomid, userimg, userid, msg, time, type, msgid);
             addHandler();
 
         }
@@ -520,7 +545,7 @@ public class ChatActivity extends AppCompatActivity {
         Intent intent = getIntent();
         now_room = intent.getExtras().getString("roomid");
 
-        cursor = myDatabaseHelper.getChatMsg(now_room, SaveSharedPreference.getUserid(ChatActivity.this));
+        cursor = myDatabaseHelper.getChatMsg(now_room);
 
         Log.e("chat msg 개수확인", "Count = " + cursor.getCount());
 
@@ -529,7 +554,8 @@ public class ChatActivity extends AppCompatActivity {
             //cursor.getColumnIndex() : 테이블의 해당 컬럼이름을 가져옴
             adapter.addChatMsg(cursor.getString(cursor.getColumnIndex("roomid")), cursor.getString(cursor.getColumnIndex("userimg")),
                     cursor.getString(cursor.getColumnIndex("userid")), cursor.getString(cursor.getColumnIndex("msg")),
-                    cursor.getString(cursor.getColumnIndex("time")), cursor.getInt(cursor.getColumnIndex("type")));
+                    cursor.getString(cursor.getColumnIndex("time")), cursor.getInt(cursor.getColumnIndex("type")),
+                    cursor.getString(cursor.getColumnIndex("msgid")));
 
         }
 
@@ -581,9 +607,9 @@ public class ChatActivity extends AppCompatActivity {
 
                         /*프로토콜 수정*/
                         // Protocol protocol = new Protocol(PT_CHAT, message.trim().getBytes().length);
-                        final Protocol protocol = new Protocol(message.trim().getBytes().length + 113);
+                        final Protocol protocol = new Protocol(message.trim().getBytes().length + 133);
                         protocol.setProtocolType(String.valueOf(PT_CHAT_MSG));
-                        protocol.setTotalLen(String.valueOf(message.trim().getBytes().length + 113));
+                        protocol.setTotalLen(String.valueOf(message.trim().getBytes().length + 133));
                         //    protocol.setMsgType(Message); //일반 메시지
                         protocol.setRoomid(now_room);
                         protocol.setUserid(SaveSharedPreference.getUserid(getApplicationContext()));
