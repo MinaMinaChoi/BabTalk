@@ -33,7 +33,9 @@ import com.example.cmina.openmeeting.R;
 import com.example.cmina.openmeeting.utils.SaveSharedPreference;
 import com.example.cmina.openmeeting.utils.SimpleDividerItemDecoration;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
 import jp.wasabeef.glide.transformations.CropCircleTransformation;
 
@@ -51,6 +53,7 @@ public class MyChatListFragment extends Fragment {
 
     public SocketService socketService; //연결할 서비스
     public boolean IsBound ; //서비스 연결여부
+    String youtubeUrl;//유튜브 공유중인지 아닌지 판별
 
     //내가 참여한 채팅방의 목록
     //sqlite에 담아둔 것을 불러오는 것
@@ -89,7 +92,7 @@ public class MyChatListFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d("마이챗fragment - oncreate", "oncreate");
+        Log.d("MyChatListFragment - oncreate", "oncreate");
 
     }
 
@@ -102,17 +105,14 @@ public class MyChatListFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-
         doBindService();
         myChatListAdapter.notifyDataSetChanged();
     }
 
-
-
     private void doBindService() {
         if (!IsBound) {
             getActivity().bindService(new Intent(getContext(), SocketService.class), serviceConnection, Context.BIND_AUTO_CREATE);
-            Log.d("my chat 프래그먼트 onResume", "바인드서비스"+IsBound);
+            Log.d("MyChatListFragment onResume", "바인드서비스");
             IsBound = true;
         }
     }
@@ -120,7 +120,7 @@ public class MyChatListFragment extends Fragment {
     private void doUnbindService() {
         if (IsBound) {
             getActivity().unbindService(serviceConnection);
-            Log.d("my chat 프래그먼트 onStop", "언바인드서비스"+IsBound);
+            Log.d("MyChatListFragment onStop", "언바인드서비스");
             IsBound = false;
         }
     }
@@ -143,8 +143,22 @@ public class MyChatListFragment extends Fragment {
         myChatTextView = (TextView) view.findViewById(R.id.mychatTextView);
         noChatTextView = (TextView) view.findViewById(R.id.nochatlist);
 
-        if (SaveSharedPreference.getUserid(getContext()).toString().equals("")) { //로그인이 된 상태가 아니라면,
 
+        //유투브 url을 받은 경우라면,
+        if (getArguments() != null) {
+            youtubeUrl = getArguments().getString("youtubeUrl");
+            Log.d("MychatListFragment", "유튜브 공유 "+youtubeUrl);
+            getActivity().setTitle("공유할 채팅방 선택");
+
+        } else {
+            youtubeUrl = "";
+        }
+
+        if (SaveSharedPreference.getUserid(getContext()).toString().equals("")) { //로그인이 된 상태가 아니라면,
+            myChatTextView.setVisibility(View.VISIBLE);
+            mychatlistRecyclerview.setVisibility(View.GONE);
+            noChatTextView.setVisibility(View.GONE);
+            Log.e("MyChatList", "노로그인");
         } else {
             myChatTextView.setVisibility(View.GONE);
 
@@ -155,14 +169,21 @@ public class MyChatListFragment extends Fragment {
 
             if (cursor.getCount() != 0) {
                 //리스트 보여주기
+                Log.e("MyChatList", "로그인 중 채팅방 보여줌");
+
                 mychatlistRecyclerview.setVisibility(View.VISIBLE);
+                myChatTextView.setVisibility(View.GONE);
+                noChatTextView.setVisibility(View.GONE);
 
             } else { //참여한 채팅방 없을 때.
+                Log.e("MyChatList", "로그인 중 노 채팅방");
+
                 noChatTextView.setVisibility(View.VISIBLE);
+                mychatlistRecyclerview.setVisibility(View.GONE);
+                myChatTextView.setVisibility(View.GONE);
             }
 
             //sqlite에서 목록 가져오기
-
             while (cursor.moveToNext()) {
 
                 String roomid = cursor.getString(cursor.getColumnIndex("roomid"));
@@ -178,7 +199,7 @@ public class MyChatListFragment extends Fragment {
                     myChatListAdapter.addItem(cursor.getString(cursor.getColumnIndex("roomid")), cursor.getString(cursor.getColumnIndex("roomtitle")),
                             cursor.getString(cursor.getColumnIndex("imageurl")),
                             msgCursor.getString(msgCursor.getColumnIndex("msg")),
-                            timeCursor.getString(timeCursor.getColumnIndex("time")).substring(12),
+                            new SimpleDateFormat("yyyy-MM-dd, a hh:mm").format(new Date(Long.valueOf(timeCursor.getString(timeCursor.getColumnIndex("time"))))).substring(12),
                             typeCursor.getInt(typeCursor.getColumnIndex("type")));
                 } else {
                     myChatListAdapter.addItem(cursor.getString(cursor.getColumnIndex("roomid")), cursor.getString(cursor.getColumnIndex("roomtitle")),
@@ -268,7 +289,7 @@ public class MyChatListFragment extends Fragment {
             TextView recent_msg_time;
             ImageView chatImageView;
 
-            public ViewHolder(View itemView) {
+            public ViewHolder(final View itemView) {
                 super(itemView);
 
                 chatImageView = (ImageView) itemView.findViewById(R.id.chatImage);
@@ -283,6 +304,9 @@ public class MyChatListFragment extends Fragment {
 
                         Intent intent = new Intent(getActivity(), ChatActivity.class);
                         intent.putExtra("roomid", items.get(getPosition()).getRoomid());
+                        intent.putExtra("roomtitle", items.get(getPosition()).getRoomtitle());
+                        intent.putExtra("youtubeUrl", youtubeUrl);
+                        Log.d("MyChatListFragment youtube 공유즁", youtubeUrl+" 공유//");
                         startActivity(intent);
 
                     }

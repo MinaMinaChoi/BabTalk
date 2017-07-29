@@ -30,7 +30,18 @@ public class UIHandler {
         }, 0);
     }
 
+    public void longtoastHandler(final String str) {
+        Handler handler = new Handler(Looper.getMainLooper());
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(context, str, Toast.LENGTH_LONG).show();
+            }
+        }, 0);
+    }
+
     public void addHandler(final String str, final TextView textView) {
+
         Handler handler = new Handler(Looper.getMainLooper()) ;
         handler.postDelayed(new Runnable() {
             @Override

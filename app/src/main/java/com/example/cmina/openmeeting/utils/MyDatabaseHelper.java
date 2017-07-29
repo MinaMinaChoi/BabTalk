@@ -8,7 +8,10 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import static android.R.attr.order;
+import static android.R.attr.type;
 import static android.icu.text.MessagePattern.ArgType.SELECT;
+import static com.example.cmina.openmeeting.activity.MainActivity.cursor;
 
 /**
  * Created by cmina on 2017-06-14.
@@ -116,6 +119,20 @@ public class MyDatabaseHelper {
 
     }
 
+    //임시 비디오 섬네일지우기
+    public boolean deleteChatlogs(Integer type) {
+        return sqLiteDatabase.delete(chat_logs_table, "type='" + type + "'", null) > 0;
+    }
+
+    //임시 비디오섬네일에서 정식으로 변경할 때,
+    public void updateChatlogs(String roomid, String userid, String userimg, String msg, String created_at, String msgid) {
+       sqLiteDatabase.execSQL("UPDATE chat_logs_table set msg='"+msg+"', time='"+created_at+"', type=2, "+" msgid='"+msgid+
+               "' WHERE type=4 and roomid='"+roomid+"' and userid='"+userid+"' and userimg='"+userimg+"'");
+    }
+
+    //가장 최근의 채팅로그 바꾸기. video받기 실패 type = 5로 바꾸기.
+
+
     public long insertChatrooms(String myid, String roomid, String roomtitle, String imageurl, String recent_msg, String recent_msg_time) {
 
         ContentValues values = new ContentValues();
@@ -151,10 +168,15 @@ public class MyDatabaseHelper {
         return sqLiteDatabase.delete(friends_table, "f_id='" + f_id + "'", null) > 0;
     }
 
-    //채팅방 지우기
+    //수정중
+    //채팅방 지우기 ==>서버에도 해당 채팅방유저목록에서 나를 지우는 작업이 필요.
+    //채팅메시지로 ~님 퇴장했습니다. 보내야하고...
     public boolean deleteChatRoom(String roomid) {
+        sqLiteDatabase.delete(chat_logs_table, "roomid = '"+roomid+"'", null);
+        Log.d("MyDataBaseHelper 해당방 채팅로그도 삭제", (sqLiteDatabase.delete(chat_logs_table, "roomid = '"+roomid+"'", null)>0)+"");
         return sqLiteDatabase.delete(chat_rooms_table, "roomid ='" + roomid+"'", null) > 0;
     }
+
 
     //대화내용으로 검색하는
     public Cursor getMatchMsg(String roomid, String str) {
@@ -180,9 +202,29 @@ public class MyDatabaseHelper {
         return cursor;
     }
 
+    //수정중 ==>이 메소드는 왜 안되지?
+    //보내기 실패한 동영상을 보내는 중일 때, type = 4
+    public Cursor removeChatType4(String msgid) {
+        Cursor cursor = sqLiteDatabase.rawQuery("DELETE FROM chat_logs WHERE type = 4 and time='"+msgid+"'", null);
+        Log.d("MyDatabaseHelper removeChatType4", msgid+"삭제");
+        return cursor;
+    }
+
+    public boolean removetype4(String msgid) {
+        Log.d("MyDatabaseHelper removetype4 ", msgid+"삭제"+ (sqLiteDatabase.delete(chat_logs_table, "type =4 and time = '"+msgid+"'", null) > 0));
+        return sqLiteDatabase.delete(chat_logs_table, "type =4 and time = '"+msgid+"'", null) > 0;
+    }
+
+    //type =4이고, time이 getMsgId()와 같은
+    public Cursor getVideoInfo(String msgid) {
+        Cursor cursor = sqLiteDatabase.rawQuery("SELECT * FROM chat_logs WHERE type = 4 and time='"+msgid+"'", null);
+        Log.d("MyDatabaseHelper getVideoInfo", msgid+"있음");
+        return cursor;
+    }
+
     //채팅로그의 최신 msgid를 가져오는
     public Cursor getRecentMsgID() {
-        Cursor cursor = sqLiteDatabase.rawQuery("SELECT msgid FROM chat_logs order by _id desc limit 1", null);
+        Cursor cursor = sqLiteDatabase.rawQuery("SELECT msgid FROM chat_logs order by msgid desc limit 1", null);
         return cursor;
     }
 
@@ -203,11 +245,10 @@ public class MyDatabaseHelper {
 
     }
 
-    //채팅방 리스트 전부 가져오는
+    //참여중인 채팅방리스트 가져오는
     public Cursor getChatRooms(String myid) {
         Cursor cursor = sqLiteDatabase.rawQuery("SELECT * FROM " + chat_rooms_table + " WHERE myid='" + myid + "' order by _id desc", null);
         return cursor;
-
     }
 
     //채팅방 리스트 전부 지우기

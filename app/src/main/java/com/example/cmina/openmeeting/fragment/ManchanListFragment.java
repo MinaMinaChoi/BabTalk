@@ -39,7 +39,6 @@ import com.example.cmina.openmeeting.utils.SaveSharedPreference;
 import com.example.cmina.openmeeting.utils.UIHandler;
 import com.example.cmina.openmeeting.activity.LoginActivity;
 import com.example.cmina.openmeeting.activity.OpenActivity;
-import com.melnykov.fab.FloatingActionButton;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -56,6 +55,7 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
 
+import static com.example.cmina.openmeeting.activity.MainActivity.cursor;
 import static com.example.cmina.openmeeting.activity.MainActivity.myDatabaseHelper;
 
 
@@ -115,7 +115,7 @@ public class ManchanListFragment extends Fragment {
     private void doBindService() {
         if (!IsBound) {
             getActivity().bindService(new Intent(getContext(), SocketService.class), serviceConnection, Context.BIND_AUTO_CREATE);
-            Log.d("만찬 프래그먼트 onResume", "바인드서비스"+IsBound);
+            Log.d("ManchanListFragment onResume", "바인드서비스");
             IsBound = true;
         }
 
@@ -124,7 +124,7 @@ public class ManchanListFragment extends Fragment {
     private void doUnbindService() {
         if (IsBound) {
             getActivity().unbindService(serviceConnection);
-            Log.d("만찬프래그먼트 onStop", "언바인드서비스"+IsBound);
+            Log.d("ManchanListFragment onStop", "언바인드서비스");
             IsBound = false;
         }
     }
@@ -139,7 +139,6 @@ public class ManchanListFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-
         doBindService();
     }
 
@@ -210,7 +209,7 @@ public class ManchanListFragment extends Fragment {
 
                         String responseStr = response.body().string();
 
-                        Log.e("manchanlist", responseStr);
+                       // Log.e("manchanlist", responseStr);
 
                         //JsonArray로 결과 받기!!
                         try {
@@ -356,6 +355,7 @@ public class ManchanListFragment extends Fragment {
             holder.huser.setText(items.get(position).getUserid());
             holder.hdetailarea.setText(items.get(position).getManchandetailArea());
             holder.hbrief.setText(items.get(position).getManchanBrief());
+            holder.hostid = items.get(position).getManchanid();
 
             Date now = new Date();
             String datetime = simpleDateFormat.format(now);
@@ -367,11 +367,33 @@ public class ManchanListFragment extends Fragment {
                 holder.JoinButton.setBackgroundResource(R.drawable.btnround);
             }
 
-            if (SaveSharedPreference.getUserid(context).equals(holder.huser.getText().toString())) {
+            if (SaveSharedPreference.getUserid(context).equals(holder.huser.getText().toString())) { //내가 만든 채팅방은 참여하기 버튼 안보이게.
                 holder.JoinButton.setVisibility(View.INVISIBLE);
             } else {
                 holder.JoinButton.setVisibility(View.VISIBLE);
             }
+
+            //이미 참여중인 채팅방에는 참여중이라고 알려주기 hostid
+            cursor = myDatabaseHelper.getChatRooms(SaveSharedPreference.getUserid(getContext()));
+
+            Log.d("ManchanListFragment", "Count = " + cursor.getCount());
+
+            if (cursor.getCount() > 0) {
+                while (cursor.moveToNext()) {
+                    Log.d("ManchanListFragment", "참여한 방목록"+cursor.getString(cursor.getColumnIndex("roomid")));
+                    if (cursor.getString(cursor.getColumnIndex("roomid")).equals(holder.hostid)) {
+                        holder.JoinButton.setText("참여중");
+                        holder.JoinButton.setEnabled(false);
+                        holder.JoinButton.setTextColor(R.color.textColorPrimary);
+                        Log.d("참여중인 채팅방", holder.hostid);
+                    } /*else {
+                        holder.JoinButton.setText("참여하기");
+                        holder.JoinButton.setEnabled(true);
+                        holder.JoinButton.setTextColor(R.color.light_grey);
+                    }*/
+                }
+            }
+
 
         }
 
@@ -384,6 +406,7 @@ public class ManchanListFragment extends Fragment {
         class ViewHolder extends RecyclerView.ViewHolder {
 
             //hostuser의 profile image, htitle, hdate / htime, hmenu, detailarea
+            String hostid;
             ImageView huserImage;
             TextView htitle;
             TextView hdatehtime;
@@ -402,9 +425,6 @@ public class ManchanListFragment extends Fragment {
                 hdetailarea = (TextView) itemView.findViewById(R.id.manchandetail);
                 hbrief = (TextView) itemView.findViewById(R.id.manchanbriefTextView);
                 JoinButton = (Button) itemView.findViewById(R.id.joinBtn);
-
-                //      Log.e("chchch", SaveSharedPreference.getUserid(context)+"//"+huser.getText().toString());
-
 
                 JoinButton.setOnClickListener(new View.OnClickListener() {
                     @Override

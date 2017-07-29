@@ -22,21 +22,24 @@ public class Protocol implements Serializable {
     public static final int PT_UNDEFINED = -1; //프로토콜 지정 안되었을때
     public static final int PT_CREATEROOM = 0; //방만들기
     public static final int PT_JOINROOM = 1; //방에 들어가기
-   // public static final int PT_CHAT = 2; //채팅
-    public static final int PT_CHECK = 5;
+    public static final int PT_CHECK = 5; //소켓연결체크
 
     //프로토콜 수정
     public static final int PT_CHAT_MSG = 6;
     public static final int PT_CHAT_IMG = 7;
     public static final int PT_CHAT_MOVIE = 9;
-    public static final int PT_OFFSET = 2;
+    public static final int PT_OFFSET = 2; //이어받기 오프셋위치 확인용
 
+    public static final int cliToServer = 1;
+    public static final int serverToCli = 2;
 
     public static final int SOCKET_CHECK = 8; //클라이언트에서 소켓체크하기 위해 보내는 데이터
 
     public static final int LEN_MSG_ID = 20; //메시지 id, 서버에 도착했을 때의 time
 
     public static final int LEN_OFFSET_CHECK = 10; //다운로드 중단 위치의 길이
+
+    public static final int LEN_CHECK_TYPE = 1; //클라->서버 타입인지, 서버->클라 타입인지
 
     public static final int LEN_TOTAL_LEN = 32; //젤처음에, 패킷전체 길이
 
@@ -61,57 +64,52 @@ public class Protocol implements Serializable {
 
     //생성자
     public Protocol(int packetLen) {
-
        // this.protocolType = protocolType;
         //어떤 상수를 생성자에 넣어 프로코톨 클래스를 생성하느냐에 따라서 바이트 배열의 packet length가 결정.
         getPacket(packetLen);
-
     }
 
+/*
     public Protocol(int protocolType, int total) {
         this.totalLength = total;
         this.protocolType = protocolType;
         //어떤 상수를 생성자에 넣어 프로코톨 클래스를 생성하느냐에 따라서 바이트 배열의 packet length가 결정.
         getPacket( protocolType, total);
     }
+*/
 
+/*
 
-    public byte[] getPacket(/*Protocol protocol,*/ int protocolType, int dataLen) {
+    public byte[] getPacket(int protocolType, int dataLen) {
         if (packet == null) {
             switch (protocolType) {
                 case PT_CREATEROOM: //CreateRoom/roomid/userid 이렇게
                     packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID];
-                   // protocol.setTotalLen(String.valueOf(LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID));
                     break;
                 case PT_JOINROOM: //JoinRoom/roomid/userid
                     packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID];
-                 //   protocol.setTotalLen(String.valueOf(LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID));
+                    break;
+                case PT_CHAT_MSG :
+                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID+ dataLen];
                     break;
 
-                case PT_CHAT_MSG : //113 -> 133
-                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG+ LEN_MSG_ID +dataLen];
-                 //   protocol.setTotalLen(String.valueOf(LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG+ dataLen));
+                case PT_CHAT_IMG :
+                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID+ dataLen];
                     break;
 
-                case PT_CHAT_IMG : //113 -> 133
-                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID  + dataLen];
-                 //   protocol.setTotalLen(String.valueOf(LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  +LEN_FILE_NAME + dataLen));
+                case PT_CHAT_MOVIE :
+                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME  + dataLen];
                     break;
 
-                case PT_CHAT_MOVIE : //213 -> 233
-                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID  +LEN_FILE_NAME + dataLen];
-                    break;
-
-                case PT_OFFSET : //223
-                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  +LEN_FILE_NAME + LEN_OFFSET_CHECK ];
+                case PT_OFFSET : //244
+                    packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID +LEN_FILE_NAME + LEN_OFFSET_CHECK + LEN_CHECK_TYPE ];
                     break;
 
                 case PT_UNDEFINED:
                     packet = new byte[LEN_MAX];
                     break;
-                case PT_CHECK: //메시지를 받았다는 오케이 싸인!!
+                case PT_CHECK: //메시지를 받았다는 ok사인으로.
                     packet = new byte[LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_SOCKET_CHECK];
-                 //   protocol.setTotalLen(String.valueOf(LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_SOCKET_CHECK));
                     break;
             }
         }
@@ -120,6 +118,7 @@ public class Protocol implements Serializable {
 
         return packet;
     }
+*/
 
     public byte[] getPacket(int totalLen) { //전체길이만큼 바이트배열을 준비!
         if (packet == null) {
@@ -232,11 +231,11 @@ public class Protocol implements Serializable {
 
     //msgid 세팅
     public void setMsgId(String msgId) {
-        System.arraycopy(msgId.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG, msgId.getBytes().length);
+        System.arraycopy(msgId.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG , msgId.getBytes().length);
     }
 
     public String getMsgId() {
-        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG, LEN_MSG_ID).trim();
+        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG , LEN_MSG_ID).trim();
     }
 
 
@@ -292,11 +291,19 @@ public class Protocol implements Serializable {
 
     //파일 이어받기 시도중
     public void setOffSet(String offSet) {
-        System.arraycopy(offSet.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_FILE_NAME, offSet.trim().getBytes().length);
+        System.arraycopy(offSet.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID +LEN_FILE_NAME, offSet.trim().getBytes().length);
     }
 
     public String getOffSet() {
-        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_FILE_NAME, LEN_OFFSET_CHECK).trim();
+        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME, LEN_OFFSET_CHECK).trim();
+    }
+
+    public void setCheckType(String checkType) {
+        System.arraycopy(checkType.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG +LEN_MSG_ID+ LEN_FILE_NAME +LEN_OFFSET_CHECK, checkType.trim().getBytes().length);
+    }
+
+    public String getCheckType() {
+        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG+LEN_MSG_ID + LEN_FILE_NAME +LEN_OFFSET_CHECK , LEN_CHECK_TYPE).trim();
     }
 
     //특정위치부터 파일 전송하기기
@@ -328,15 +335,13 @@ public class Protocol implements Serializable {
    }
 
 
-
-
     //동영상 전송 테스트중
     public void setFileName(String fileName) {
-        System.arraycopy(fileName.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID , fileName.trim().getBytes().length);
+        System.arraycopy(fileName.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG +LEN_MSG_ID , fileName.trim().getBytes().length);
     }
 
     public String getFileName() {
-        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID , LEN_FILE_NAME).trim();
+        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID , LEN_FILE_NAME).trim();
     }
 
     //이미지의 길이만큼 바이트배열을 만들어서, 패킷에서 이미지를 나타내는 바이트배열만 data에 담는다

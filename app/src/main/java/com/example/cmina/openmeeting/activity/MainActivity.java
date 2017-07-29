@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
@@ -23,6 +24,8 @@ import com.example.cmina.openmeeting.R;
 import com.example.cmina.openmeeting.service.SocketService;
 import com.example.cmina.openmeeting.utils.MyDatabaseHelper;
 import com.facebook.stetho.Stetho;
+
+import static com.example.cmina.openmeeting.activity.ChatActivity.REQ_CODE_SELECT_IMAGE;
 
 
 /**
@@ -47,11 +50,8 @@ public class MainActivity extends AppCompatActivity {
             SocketService.LocalBinder binder = (SocketService.LocalBinder) iBinder;
             socketService = binder.getService(); //서비스 받아옴
            // socketService.registerCallback(callback); //콜백 등록
-
             IsBound = true;
-
         }
-
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             //socketService = null;
@@ -64,15 +64,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         doUnbindService();
-       // unbindService(serviceConnection);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         doBindService();
-     //   startService(new Intent(MainActivity.this, SocketService.class));
-       // bindService(new Intent(MainActivity.this, SocketService.class), serviceConnection, Context.BIND_AUTO_CREATE);
 
         pageAdapter.notifyDataSetChanged();
     }
@@ -85,17 +82,15 @@ public class MainActivity extends AppCompatActivity {
             //다시 정상적으로 startService살림
             startService(intent);
             bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-            Log.d("Main - onresume", "바인드서비스"+IsBound);
+            Log.d("Main - onresume", "바인드서비스");
             IsBound = true;
         }
-
     }
 
     private void doUnbindService() {
         if (IsBound) {
             unbindService(serviceConnection);
-            Log.d("MainActivity onStop", "언바인드서비스" + IsBound);
-
+            Log.d("MainActivity onStop", "언바인드서비스");
             IsBound = false;
         }
     }
@@ -139,6 +134,30 @@ public class MainActivity extends AppCompatActivity {
         tabStrip.setViewPager(viewPager);
 
 
+        //유튜브 주소 받아오기
+        if (getIntent() != null) {
+            Log.d("MainActivity", "getIntent not null");
+            Bundle extras = getIntent().getExtras();
+            if (extras != null) {
+                Log.d("MainActivity", "getIntent().getExtras not null");
+                String youtubeUrl = extras.getString(Intent.EXTRA_TEXT, "");
+
+                youtubeUrl = youtubeUrl.trim(); //공백제거
+
+                if (youtubeUrl.length() != 0) {
+                    Log.d("MainActivity", "유튜브 공유 "+youtubeUrl);
+                    //유튜브 주소가 있으면, MyChatListFragment로 이동
+                    Bundle bundle = new Bundle();
+                    bundle.putString("youtubeUrl", youtubeUrl);
+                    myChatFragment.setArguments(bundle);
+                    viewPager.setCurrentItem(1);
+
+                }
+
+            }
+        }
+
+
     }
 
     private String[] pageTitle = {"HOME", "MyChatList", "MyPage"};
@@ -175,4 +194,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_CODE_SELECT_IMAGE && resultCode == RESULT_OK) {
+            if (data != null) {
+                Uri uri = data.getData();
+                Log.e("MainActivity image gal", uri + "");
+
+                //EventBus.getInstance().post(ActivityResultEvent.create(requestCode, resultCode, data));
+                Fragment fragment = getSupportFragmentManager().findFragmentById(R.id.mypagefragment);
+                fragment.onActivityResult(requestCode, resultCode, data);
+
+            }
+        }
+    }
 }

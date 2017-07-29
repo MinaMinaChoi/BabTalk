@@ -102,7 +102,6 @@ public class LoginActivity extends AppCompatActivity {
                                 } else {
                                     handler.toastHandler("로그인 성공");
 
-
                                     try {
                                         JSONObject jsonObject = new JSONObject(responseStr);
 

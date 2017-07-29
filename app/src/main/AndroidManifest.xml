@@ -7,23 +7,33 @@
         android:icon="@drawable/babtalk"
         android:label="같이 밥먹자"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        android:hardwareAccelerated="true"
+        >
         <activity android:name=".activity.OpenActivity"></activity>
 
         <activity android:name=".activity.MainActivity">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
+                //youtube에서 공유하기
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
 
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
         <activity android:name=".activity.SignUpActivity"></activity>
         <activity android:name=".activity.LoginActivity" />
-        <activity android:name=".activity.ChatActivity" />
+        <activity android:name=".activity.ChatActivity"></activity>
+        <activity android:name=".activity.WebViewActivity" />
 
         //stopWithTask true로하면 ontaskRemoved 호출되지 않는다.
-        <service android:name=".service.SocketService"
+        <service
+            android:name=".service.SocketService"
             android:stopWithTask="false"></service>
 
     </application>
@@ -35,7 +45,7 @@
     //소켓 통신을 하기위한 부수적 권한(wifi change됐는지 )
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     //카메라 사용 권한
-    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.CAMERA" />
     //외부저장소 쓰기
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"></uses-permission>
     //외부저장소 읽기

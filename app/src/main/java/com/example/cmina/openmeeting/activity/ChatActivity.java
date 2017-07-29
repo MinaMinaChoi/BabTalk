@@ -46,10 +46,9 @@ import com.example.cmina.openmeeting.utils.SaveSharedPreference;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 
-import static android.R.attr.name;
-import static android.R.attr.type;
 import static android.os.Environment.getExternalStoragePublicDirectory;
 
 import static com.example.cmina.openmeeting.activity.MainActivity.cursor;
@@ -58,6 +57,7 @@ import static com.example.cmina.openmeeting.service.SocketService.inRoom;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_IMG;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MSG;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_OFFSET;
+import static com.example.cmina.openmeeting.utils.Protocol.cliToServer;
 
 /**
  * Created by cmina on 2017-06-13.
@@ -69,7 +69,9 @@ public class ChatActivity extends AppCompatActivity {
     public static boolean duringDownload;
 
     //파일 이어받기를 위한 static
-    public static Uri uri;
+    public static String realPath="";
+    //유튜브 공유하기
+    String youtubeUrl;
 
     public SocketService socketService; //연결할 서비스
     public boolean IsBound;
@@ -152,8 +154,48 @@ public class ChatActivity extends AppCompatActivity {
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             SocketService.LocalBinder binder = (SocketService.LocalBinder) iBinder;
             socketService = binder.getService(); //서비스 받아옴
+            Log.e("ChatActivity", "서비스 바인드 성공");
             socketService.registerCallback(callback); //콜백 등록
+            socketService.registerCallback2(callback2); //보내기실패한 동영상 adapter에서 삭제
             IsBound = true;
+
+            //youtube url이 있다면...
+            if (!youtubeUrl.equals("")) {
+                //확실히 서비스 바인드 한 후에, 유튜브 공유!!
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                message = youtubeUrl;
+                if (now_room != null && message != null) {
+                    //바로 리스트뷰에 추가하는게 아니라, 서버에 전달이 확실히 됐을 때 그 후에....
+                    // Protocol protocol = new Protocol(PT_CHAT, message.trim().getBytes().length);
+                    final Protocol protocol = new Protocol(message.trim().getBytes().length + 133);
+                    protocol.setProtocolType(String.valueOf(PT_CHAT_MSG));
+                    protocol.setTotalLen(String.valueOf(message.trim().getBytes().length + 133));
+                    protocol.setRoomid(now_room);
+                    protocol.setUserid(SaveSharedPreference.getUserid(getApplicationContext()));
+                    protocol.setUserimg(SaveSharedPreference.getUserimage(getApplicationContext()));
+                    protocol.setMsg(message);
+
+                    Log.d("보내는 유튜브 주소", "" + message.trim().getBytes().length + "/" + now_room + "/" + SaveSharedPreference.getUserid(getApplicationContext()) + "/"
+                            + SaveSharedPreference.getUserimage(getApplicationContext()) + "/" + message);
+
+                    //서비스 바인드성공하기 전에 불려서....메시지 보내기가 안됨...
+                    if (socketService != null) {
+                        socketService.send_byte(protocol.getPacket());
+                        Log.d("챗액티비티 소켓확인", socketService.toString());
+                        message = null;
+                    } else {
+                        Log.e("ChatActivity", "socketService == null 메시지 보내기 실패");
+                        Toast.makeText(ChatActivity.this, "메시지 보내기 실패", Toast.LENGTH_SHORT).show();
+                    }
+
+                }
+            }
+
+
         }
 
         @Override
@@ -214,6 +256,17 @@ public class ChatActivity extends AppCompatActivity {
                 .getColumnIndexOrThrow(MediaStore.Images.ImageColumns.DISPLAY_NAME);
         cursor.moveToFirst();
         return cursor.getString(column_index);
+    }
+
+    //realPath에서 파일명찾기
+    public static String getFileName(String pathandname){
+        int start=pathandname.lastIndexOf("/");
+        int end=pathandname.lastIndexOf(".");
+        if(start!=-1 && end!=-1){
+            return pathandname.substring(start+1);
+        }else{
+            return null;
+        }
     }
 
     // uri 아이디 찾기
@@ -300,27 +353,32 @@ public class ChatActivity extends AppCompatActivity {
                 //uri는 저장해 두었다가
                 //해당 위치에서부터 파일보내도록 하기...
                 //일단 동영상 썸네일 세팅? 그 위에 프로그레스바올리기?
-                uri = data.getData();
+                Uri uri = data.getData();
 
-                duringDownload = true;
+         //       duringDownload = true;
 
-               /* adapter.addChatMsg(now_room, SaveSharedPreference.getUserimage(ChatActivity.this), SaveSharedPreference.getUserid(ChatActivity.this), uri.toString(), "", 2, "");
-                addHandler();
-*/
                 String name = getName(this, uri);
-                String path = getRealPathFromUri(ChatActivity.this, uri);
+                realPath = getRealPathFromUri(ChatActivity.this, uri);
 
                 //********************
-                Protocol protocol1 = new Protocol(233);
-                protocol1.setTotalLen(String.valueOf(233));
+                //수정중
+                //동영상을 최초 보낼때!!!
+                //setmsgid()셋팅하지 않고!!
+                Protocol protocol1 = new Protocol(244);
+                protocol1.setTotalLen(String.valueOf(244));
                 protocol1.setProtocolType(String.valueOf(PT_OFFSET));
                 protocol1.setRoomid(now_room);
                 protocol1.setUserid(SaveSharedPreference.getUserid(ChatActivity.this));
                 protocol1.setFileName(name);
+                protocol1.setCheckType(String.valueOf(cliToServer));
 
                 socketService.send_byte(protocol1.getPacket());
 
-                Log.e("###", "실제경로 : " + path + "\n파일명 : " + name + "\nuri : " + uri.toString() );
+               // Log.d("동영상 서버업로드 시작", now_room + uri  + "// 파일이름 : " + name +"/offset " + offset +" roomid "+now_room +" userid "+SaveSharedPreference.getUserid(this));
+
+               // socketService.videosendTime = System.currentTimeMillis();
+
+                Log.e("PT_OFFSET 보냄", "실제경로 : " + realPath + "\n파일명 : " + name + "\nuri : " + uri.toString() );
 
                 //********************
 
@@ -374,10 +432,8 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        inRoom = true;
-        //bindService(new Intent(ChatActivity.this, SocketService.class), serviceConnection, Context.BIND_AUTO_CREATE);
-        doBindService();
 
+        //서비스 바인드하기 전에 메시지 보내기 시도해서.....
     }
 
     @Override
@@ -389,17 +445,13 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-//        unbindService(serviceConnection);
         doUnbindService();
     }
 
     //이미지 저장 경로 파일 생성!
     private Uri createImageFile() {
-
         long curr = System.currentTimeMillis();
         String imageFileName = curr + ".jpg";
-        //String imageFileName = curr + ".mp4";
-
         //외부저장소에 저장
         File storageDir = getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         //내부저장소
@@ -415,19 +467,43 @@ public class ChatActivity extends AppCompatActivity {
             //메시지 받아서 어댑터에 셋팅
             //흠..어차피 adapter는 chatactivity에 있네..흠.
             //메인액티비티에서 서비스에 바인드 하는데,
-            Log.d("recvMsg", "콜백함수 불림");
+            Log.d("ChatActivity ", "adapter에 추가");
             adapter.addChatMsg(roomid, userimg, userid, msg, time, type, msgid);
             addHandler();
 
         }
+
     };
+
+    //실패했던 동영상 정보 삭제하기
+    public SocketService.ICallback callback2 = new SocketService.ICallback() {
+        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type, String msgid) {
+            Log.d("callback2", "실패한 동영상  adapter에서 삭제 "+msgid);
+            adapter.delChatMsg(msgid);//최근걸 지우는게 아니라, type=4인걸...
+           // addHandler();
+        }
+    };
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
+
+        doBindService();
+
+        Intent intent = getIntent();
+        now_room = intent.getExtras().getString("roomid");
+        String roomtitle = intent.getExtras().getString("roomtitle");
+        if (intent.getExtras().getString("youtubeUrl") != null) {
+            youtubeUrl = intent.getExtras().getString("youtubeUrl");
+        } else {
+            youtubeUrl = "";
+        }
+
         //액션바에 백버튼만들기 위해
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        setTitle(roomtitle);
 
         //채팅방액티비티에 있음
         inRoom = true;
@@ -436,7 +512,6 @@ public class ChatActivity extends AppCompatActivity {
         sendBtn = (Button) findViewById(R.id.sendBtn);
         sendImage = (ImageButton) findViewById(R.id.sendImage);
         socketCloseBtn = (Button) findViewById(R.id.socketcloseBtn);
-
         socketCloseBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -444,11 +519,12 @@ public class ChatActivity extends AppCompatActivity {
                     if (socketService.is != null && socketService.os != null && socketService.socket != null) {
                         socketService.is.close();
                         socketService.os.close();
+                        socketService.dis.close();
+                        socketService.dos.close();
                         socketService.socket.close();
-
+                        Log.d("임의로 소켓연결 끊음", "ChatActivity");
                         Toast.makeText(ChatActivity.this, "소켓 연결 끊음", Toast.LENGTH_SHORT).show();
                     }
-
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -542,9 +618,6 @@ public class ChatActivity extends AppCompatActivity {
         });
 
 
-        Intent intent = getIntent();
-        now_room = intent.getExtras().getString("roomid");
-
         cursor = myDatabaseHelper.getChatMsg(now_room);
 
         Log.e("chat msg 개수확인", "Count = " + cursor.getCount());
@@ -600,17 +673,10 @@ public class ChatActivity extends AppCompatActivity {
 
                     if (now_room != null && message != null) {
                         //바로 리스트뷰에 추가하는게 아니라, 서버에 전달이 확실히 됐을 때 그 후에....
-
-                        //**수정
-                        //프로토콜 정의해서 보내기
-                        // socketService.send_message("Chatting|" + now_room + "|"+SaveSharedPreference.getUserid(ChatActivity.this)+"|"+ SaveSharedPreference.getUserimage(ChatActivity.this)+ "|" + message);
-
-                        /*프로토콜 수정*/
                         // Protocol protocol = new Protocol(PT_CHAT, message.trim().getBytes().length);
                         final Protocol protocol = new Protocol(message.trim().getBytes().length + 133);
                         protocol.setProtocolType(String.valueOf(PT_CHAT_MSG));
                         protocol.setTotalLen(String.valueOf(message.trim().getBytes().length + 133));
-                        //    protocol.setMsgType(Message); //일반 메시지
                         protocol.setRoomid(now_room);
                         protocol.setUserid(SaveSharedPreference.getUserid(getApplicationContext()));
                         protocol.setUserimg(SaveSharedPreference.getUserimage(getApplicationContext()));
@@ -626,9 +692,7 @@ public class ChatActivity extends AppCompatActivity {
                         } else {
                             Toast.makeText(ChatActivity.this, "메시지 보내기 실패", Toast.LENGTH_SHORT).show();
                         }
-
                     }
-
                 }
 
             }
@@ -637,18 +701,14 @@ public class ChatActivity extends AppCompatActivity {
     }
 
 
-    private void addHandler() {
-
-        final Handler handler = new Handler(Looper.getMainLooper());
-        //오래 걸리는 작업 work스레드에서 실행.
+    public void addHandler() {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                handler.post(new Runnable() {
+
+                runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        //work스레드내부에서 명령이 실행 되는 것이 아니라.
-                        //handler.post..에 의해, 메시지 큐에 추가 되어 uithread가 차례대로 처리
                         adapter.notifyDataSetChanged();
                     }
                 });
