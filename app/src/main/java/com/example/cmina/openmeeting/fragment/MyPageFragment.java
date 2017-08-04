@@ -34,6 +34,9 @@ import com.example.cmina.openmeeting.utils.OkHttpRequest;
 import com.example.cmina.openmeeting.utils.SaveSharedPreference;
 import com.example.cmina.openmeeting.activity.LoginActivity;
 import com.example.cmina.openmeeting.activity.MainActivity;
+import com.facebook.login.LoginManager;
+import com.kakao.usermgmt.UserManagement;
+import com.kakao.usermgmt.callback.LogoutResponseCallback;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -191,7 +194,7 @@ public class MyPageFragment extends Fragment {
                 Glide.with(getContext()).load(R.drawable.userdefault).bitmapTransform(new CropCircleTransformation(getContext())).into(profileImage);
             } else {
                 Glide.with(getContext())
-                        .load("http://13.124.77.49/thumbnail/"+SaveSharedPreference.getUserid(getContext())+".jpg")
+                        .load(SaveSharedPreference.getUserimage(getContext()))
                         .skipMemoryCache(true) //메모리캐싱끄기
                         .diskCacheStrategy(DiskCacheStrategy.NONE) //디스트 캐싱하지 않는다
                         .bitmapTransform(new CropCircleTransformation(getContext()))
@@ -272,7 +275,6 @@ public class MyPageFragment extends Fragment {
                 @Override
                 public void onClick(View view) {
                     Intent intent = new Intent(getActivity(), LoginActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
                     startActivity(intent);
                 }
             });
@@ -424,6 +426,17 @@ public class MyPageFragment extends Fragment {
             case R.id.logout:
                 //자체로그아웃
                 SaveSharedPreference.clearUserInfo(getContext());
+
+                //카톡로그아웃
+                UserManagement.requestLogout(new LogoutResponseCallback() {
+                    @Override
+                    public void onCompleteLogout() {
+
+                    }
+                });
+
+                //페북로그아웃
+                LoginManager.getInstance().logOut();
 
                 Intent intent = new Intent(getActivity(), MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);

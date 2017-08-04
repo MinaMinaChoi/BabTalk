@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">OpenMeeting</string>
+    <string name="facebook_app_id">117828182197089</string>
+
 </resources>

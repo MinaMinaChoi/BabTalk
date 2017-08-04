@@ -24,7 +24,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="1234"
+            android:maxLines="1"
             android:textSize="16sp"
             android:textColor="#000"
             android:textStyle="bold" />
@@ -34,8 +34,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:maxLines="1"
             android:textSize="15sp"
-            android:text="1234"
             android:textColor="#000" />
 
     </LinearLayout>

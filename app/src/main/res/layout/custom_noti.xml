@@ -2,8 +2,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
     android:background="@drawable/edittextbackground"
+    android:orientation="horizontal"
     android:padding="5dp">
 
     <ImageView
@@ -29,21 +29,20 @@
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_weight="3"
+                android:maxLines="1"
                 android:textColor="#000"
-                android:text="test"
                 android:textSize="16sp"
-                android:textStyle="bold"/>
+                android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/recent_time"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:textColor="#444"
-                android:id="@+id/recent_time"
-                android:text="test"
                 android:gravity="right"
+                android:maxLines="1"
                 android:paddingRight="10dp"
-                />
+                android:textColor="#444" />
 
 
         </LinearLayout>
@@ -53,9 +52,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textSize="16sp"
+            android:maxLines="1"
             android:textColor="#444"
-            android:text="444"/>
+            android:textSize="16sp" />
 
     </LinearLayout>
 

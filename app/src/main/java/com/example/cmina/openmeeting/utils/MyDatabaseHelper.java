@@ -51,6 +51,9 @@ public class MyDatabaseHelper {
             + "msg text not null, "
             + "time long not null, "
             + "msgid long not null, "
+            + "preimg text, "
+            + "pretitle text, "
+            + "predesc text, "
             + "type Integer default 0);";
 
     private String friends_create = "CREATE TABLE friends (_id integer primary key autoincrement, "
@@ -103,7 +106,8 @@ public class MyDatabaseHelper {
 
 
     //테이블별로 인서트메소드 만들기.
-    public long insertChatlogs(String roomid, String userid, String userimg, String msg, String created_at, Integer type, String msgid) {
+    public long insertChatlogs(String roomid, String userid, String userimg, String msg, String created_at, Integer type, String msgid,
+                               String preimg, String pretitle, String predesc) {
 
         ContentValues values = new ContentValues();
        // values.put("myid", myid);
@@ -114,6 +118,9 @@ public class MyDatabaseHelper {
         values.put("time", created_at);
         values.put("type", type);
         values.put("msgid", msgid);
+        values.put("preimg", preimg);
+        values.put("pretitle", pretitle);
+        values.put("predesc", predesc);
 
         return sqLiteDatabase.insert(chat_logs_table, null, values);
 
@@ -124,14 +131,10 @@ public class MyDatabaseHelper {
         return sqLiteDatabase.delete(chat_logs_table, "type='" + type + "'", null) > 0;
     }
 
-    //임시 비디오섬네일에서 정식으로 변경할 때,
-    public void updateChatlogs(String roomid, String userid, String userimg, String msg, String created_at, String msgid) {
-       sqLiteDatabase.execSQL("UPDATE chat_logs_table set msg='"+msg+"', time='"+created_at+"', type=2, "+" msgid='"+msgid+
-               "' WHERE type=4 and roomid='"+roomid+"' and userid='"+userid+"' and userimg='"+userimg+"'");
-    }
-
     //가장 최근의 채팅로그 바꾸기. video받기 실패 type = 5로 바꾸기.
 
+//채팅방에 참여시작하게 된 시간도 넣어야겠네....
+    //그래야지, 참여이전의 메시지가 들어오지 않게끔...
 
     public long insertChatrooms(String myid, String roomid, String roomtitle, String imageurl, String recent_msg, String recent_msg_time) {
 

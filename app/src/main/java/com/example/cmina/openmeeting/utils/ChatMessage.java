@@ -13,8 +13,12 @@ public class ChatMessage {
     private int msgtype;
     private String msgTime;
     private String msgid;
+    private String preImg;
+    private String preTitle;
+    private String preDesc;
 
-    public ChatMessage(String roomid, String profileImg, String userid, String msg, String msgTime, int msgtype, String msgid) {
+    public ChatMessage(String roomid, String userid, String profileImg, String msg, String msgTime, int msgtype, String msgid,
+                       String preImg, String preTitle, String preDesc) {
         this.roomid = roomid;
         this.profileImg = profileImg;
         this.userid = userid;
@@ -22,6 +26,41 @@ public class ChatMessage {
         this.msgtype = msgtype;
         this.msgTime = msgTime;
         this.msgid = msgid;
+        this.preImg = preImg;
+        this.preTitle = preTitle;
+        this.preDesc = preDesc;
+       // this.preview = preview;
+    }
+
+    public ChatMessage() {
+
+    }
+
+
+
+
+    public void setPreImg(String preImg) {
+        this.preImg = preImg;
+    }
+
+    public String getPreImg() {
+        return preImg;
+    }
+
+    public void setPreTitle(String pretitle) {
+        this.preTitle = pretitle;
+    }
+
+    public String getPreTitle() {
+        return preTitle;
+    }
+
+    public void setPreDesc(String preDesc) {
+        this.preDesc = preDesc;
+    }
+
+    public String getPreDesc() {
+        return preDesc;
     }
 
     public void setRoomid(String string) {

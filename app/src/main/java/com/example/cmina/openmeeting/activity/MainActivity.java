@@ -4,6 +4,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -14,6 +17,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Base64;
 import android.util.Log;
 
 import com.astuetz.PagerSlidingTabStrip;
@@ -24,6 +28,10 @@ import com.example.cmina.openmeeting.R;
 import com.example.cmina.openmeeting.service.SocketService;
 import com.example.cmina.openmeeting.utils.MyDatabaseHelper;
 import com.facebook.stetho.Stetho;
+import com.kakao.util.helper.log.Logger;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import static com.example.cmina.openmeeting.activity.ChatActivity.REQ_CODE_SELECT_IMAGE;
 
@@ -95,6 +103,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void setActionBarTitle(String title) {
+        getSupportActionBar().setTitle(title);
+    }
+
 
     private PagerSlidingTabStrip tabStrip;
     private ViewPager viewPager;
@@ -104,10 +116,32 @@ public class MainActivity extends AppCompatActivity {
     private Fragment myPageFragment;
 
 
+    public final String getKeyHash(Context context) {
+        try {
+            PackageInfo info = MainActivity.this.getPackageManager().getPackageInfo(context.getPackageName(),
+                    PackageManager.GET_SIGNATURES);
+            for (Signature signature : info.signatures) {
+                MessageDigest md = MessageDigest.getInstance("SHA");
+                md.update(signature.toByteArray());
+                String keyHash = Base64.encodeToString(md.digest(), Base64.DEFAULT);
+                Logger.d("Main" + "KeyHash:%s", keyHash);
+                return keyHash;
+            }
+
+        } catch (PackageManager.NameNotFoundException e) {
+            Logger.d("Main" + "getKeyHash Error:%s", e.getMessage());
+        } catch (NoSuchAlgorithmException e) {
+            Logger.d("Main" + "getKeyHash Error:%s", e.getMessage());
+        }
+        return "";
+    }
+
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.d("Main - oncreate", "mainactivity oncreate");
+       // Log.e("getkeyhash", getKeyHash(this));
 
         setContentView(R.layout.activity_main);
 

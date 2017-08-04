@@ -21,6 +21,7 @@ import android.os.Looper;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.StringDef;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
@@ -44,11 +45,20 @@ import com.example.cmina.openmeeting.utils.ChatMessage;
 import com.example.cmina.openmeeting.utils.Protocol;
 import com.example.cmina.openmeeting.utils.SaveSharedPreference;
 
+import org.opencv.android.Utils;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.Size;
+import org.opencv.imgproc.Imgproc;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
+import static android.R.attr.bitmap;
 import static android.os.Environment.getExternalStoragePublicDirectory;
 
 import static com.example.cmina.openmeeting.activity.MainActivity.cursor;
@@ -58,6 +68,7 @@ import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_IMG;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MSG;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_OFFSET;
 import static com.example.cmina.openmeeting.utils.Protocol.cliToServer;
+import static org.opencv.imgproc.Imgproc.INTER_LINEAR;
 
 /**
  * Created by cmina on 2017-06-13.
@@ -65,8 +76,8 @@ import static com.example.cmina.openmeeting.utils.Protocol.cliToServer;
 
 public class ChatActivity extends AppCompatActivity {
 
-    //파일 다운로드 중이면
-    public static boolean duringDownload;
+/*    //파일 다운로드 중이면
+    public static boolean duringDownload;*/
 
     //파일 이어받기를 위한 static
     public static String realPath="";
@@ -149,7 +160,7 @@ public class ChatActivity extends AppCompatActivity {
 
 
     //서비스에 바인드하기 위해서, ServiceConnection인터페이스를 구현하는 개체를 생성
-    ServiceConnection serviceConnection = new ServiceConnection() {
+    public ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             SocketService.LocalBinder binder = (SocketService.LocalBinder) iBinder;
@@ -169,8 +180,7 @@ public class ChatActivity extends AppCompatActivity {
                 }
                 message = youtubeUrl;
                 if (now_room != null && message != null) {
-                    //바로 리스트뷰에 추가하는게 아니라, 서버에 전달이 확실히 됐을 때 그 후에....
-                    // Protocol protocol = new Protocol(PT_CHAT, message.trim().getBytes().length);
+
                     final Protocol protocol = new Protocol(message.trim().getBytes().length + 133);
                     protocol.setProtocolType(String.valueOf(PT_CHAT_MSG));
                     protocol.setTotalLen(String.valueOf(message.trim().getBytes().length + 133));
@@ -281,31 +291,58 @@ public class ChatActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+
+        inRoom = true;
+        long fileresize = 0;
+        Bitmap bitmap = null;
+        byte[] filebyte = new byte[0];
+
         //갤러리에서 사진선택
         if (requestCode == REQ_CODE_SELECT_IMAGE && resultCode == RESULT_OK) {
             if (data != null) {
                 Uri uri = data.getData();
                 Log.e("image gal", uri + " now_room = " + now_room);
 
-                File oFile = new File(getRealPathFromUri(ChatActivity.this, uri));
+                //2017.08.04
+                //원본파일 그대로 보내는 게 아니라, 이미지 리사이징해서 서버에 보내기
+                try {
+                    bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+                    Mat matInput = new Mat();
+                    org.opencv.android.Utils.bitmapToMat(bitmap, matInput);
 
+                    Mat resized = new Mat();
+                    Imgproc.resize(matInput, resized, new Size(bitmap.getWidth()/4,bitmap.getHeight()/4), 0, 0, INTER_LINEAR);
+
+                    bitmap = Bitmap.createBitmap(resized.width(), resized.height(), Bitmap.Config.ARGB_8888);
+                    org.opencv.android.Utils.matToBitmap(resized, bitmap);
+
+                    //resize한 비트맵의 사이즈...
+                    filebyte = bitmapToByteArray(bitmap);
+                    fileresize = filebyte.length;
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+               /* File oFile = new File(getRealPathFromUri(ChatActivity.this, uri));
                 long lFileSize = oFile.length();
-                int filesize = (int) (long) lFileSize;
+                int filesize = (int) (long) lFileSize;*/
 
-                Log.d("이미지 파일크기", lFileSize + "//" + filesize);
+                Log.d("이미지 파일크기", "//리사이즈 이미지 크기" + fileresize);
 
                 //이미지 파일....소켓으로 전달.
-                Protocol protocol = new Protocol(filesize + 133); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
+                Protocol protocol = new Protocol((int) (fileresize + 133)); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
                 protocol.setProtocolType(String.valueOf(PT_CHAT_IMG));
                 protocol.setRoomid(now_room);
                 protocol.setUserid(SaveSharedPreference.getUserid(ChatActivity.this));
-                protocol.setUserimg(SaveSharedPreference.getUserimage(ChatActivity.this));
-                protocol.sendImage(getRealPathFromUri(ChatActivity.this, uri));
-                protocol.setTotalLen(String.valueOf(filesize + 133));
+                protocol.setUserimg("http://13.124.77.49/thumbnail/"+SaveSharedPreference.getUserid(getApplicationContext())+".jpg");
+                //protocol.sendImage(getRealPathFromUri(ChatActivity.this, uri));
+                protocol.sendImage(filebyte);
+                protocol.setTotalLen(String.valueOf(fileresize + 133));
 
                 socketService.send_byte(protocol.getPacket());
 
-                Log.e("이미지 보내기 확인", now_room + uri + filesize);
+                Log.e("이미지 보내기 확인", now_room + uri + fileresize);
 
             }
         }
@@ -314,24 +351,44 @@ public class ChatActivity extends AppCompatActivity {
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
             if (data != null) {
                 if (!mCurrentPhotoPath.equals("")) {
+                    //2017.08.04
+                    //원본파일 그대로 보내는 게 아니라, 이미지 리사이징해서 서버에 보내기
                     String photoPath = mCurrentPhotoPath.getPath();
                     Log.e("photoPath", photoPath);
+
+                    try {
+                        bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), Uri.parse(photoPath));
+                        Mat matInput = new Mat();
+                        org.opencv.android.Utils.bitmapToMat(bitmap, matInput);
+
+                        Mat resized = new Mat();
+                        Imgproc.resize(matInput, resized, new Size(bitmap.getWidth()/4,bitmap.getHeight()/4), 0, 0, INTER_LINEAR);
+
+                        bitmap = Bitmap.createBitmap(resized.width(), resized.height(), Bitmap.Config.ARGB_8888);
+                        org.opencv.android.Utils.matToBitmap(resized, bitmap);
+
+                        //resize한 비트맵의 사이즈...
+                        filebyte = bitmapToByteArray(bitmap);
+                        fileresize = filebyte.length;
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 
                     File oFile = new File(photoPath);
                     long lFileSize = oFile.length();
                     int filesize = (int) (long) lFileSize;
 
-                    Log.d("이미지 파일크기", lFileSize + "//" + filesize);
+                    Log.d("이미지 파일크기", lFileSize + "//이미지 리사이즈 " +fileresize );
 
                     //이미지 파일....소켓으로 전달.
-                    Protocol protocol = new Protocol(filesize + 133); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
+                    Protocol protocol = new Protocol((int) (fileresize + 133)); //채팅프로토콜+파일사이즈 만큼의 바이트배열을 만든다!
                     protocol.setProtocolType(String.valueOf(PT_CHAT_IMG));
-                    //   protocol.setMsgType(IMG);
                     protocol.setRoomid(now_room);
                     protocol.setUserid(SaveSharedPreference.getUserid(ChatActivity.this));
-                    protocol.setUserimg(SaveSharedPreference.getUserimage(ChatActivity.this));
-                    protocol.sendImage(photoPath);
-                    protocol.setTotalLen(String.valueOf(filesize + 133));
+                    protocol.setUserimg("http://13.124.77.49/thumbnail/"+SaveSharedPreference.getUserid(getApplicationContext())+".jpg");
+                    protocol.sendImage(filebyte);
+                    protocol.setTotalLen(String.valueOf(fileresize + 133));
 
                     socketService.send_byte(protocol.getPacket());
 
@@ -370,6 +427,7 @@ public class ChatActivity extends AppCompatActivity {
                 protocol1.setRoomid(now_room);
                 protocol1.setUserid(SaveSharedPreference.getUserid(ChatActivity.this));
                 protocol1.setFileName(name);
+                protocol1.setUserimg("http://13.124.77.49/thumbnail/"+SaveSharedPreference.getUserid(getApplicationContext())+".jpg");
                 protocol1.setCheckType(String.valueOf(cliToServer));
 
                 socketService.send_byte(protocol1.getPacket());
@@ -429,11 +487,17 @@ public class ChatActivity extends AppCompatActivity {
     }
 
 
+    public byte[] bitmapToByteArray( Bitmap bitmap ) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream() ;
+        bitmap.compress( Bitmap.CompressFormat.JPEG, 100, stream) ;
+        byte[] byteArray = stream.toByteArray() ;
+        return byteArray ;
+    }
+
+
     @Override
     protected void onResume() {
         super.onResume();
-
-        //서비스 바인드하기 전에 메시지 보내기 시도해서.....
     }
 
     @Override
@@ -454,22 +518,21 @@ public class ChatActivity extends AppCompatActivity {
         String imageFileName = curr + ".jpg";
         //외부저장소에 저장
         File storageDir = getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        //내부저장소
-        //storageDir = getFilesDir();
+
         Uri uri = Uri.fromFile(new File(storageDir, imageFileName));
         return uri;
     }
 
     //서비스에서 아래의 콜백함수를 호출하며, 콜백함수에서는 액티비티에서 처리할 내용입력
     public SocketService.ICallback callback = new SocketService.ICallback() {
-        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type, String msgid) {
-            //처리할 일들
-            //메시지 받아서 어댑터에 셋팅
-            //흠..어차피 adapter는 chatactivity에 있네..흠.
-            //메인액티비티에서 서비스에 바인드 하는데,
+        public void recvMsg(String roomid, String userid, String userimg, String msg, String time, int type, String msgid, String preimg,
+                            String pretitle, String predesc) {
             Log.d("ChatActivity ", "adapter에 추가");
-            adapter.addChatMsg(roomid, userimg, userid, msg, time, type, msgid);
+
+            adapter.addChatMsg(roomid, userid, userimg, msg, time, type, msgid, preimg, pretitle, predesc);
             addHandler();
+
+          //  myDatabaseHelper.insertChatlogs(roomid, userid, userimg, msg, time, type, msgid, preimg, pretitle, predesc);
 
         }
 
@@ -477,7 +540,8 @@ public class ChatActivity extends AppCompatActivity {
 
     //실패했던 동영상 정보 삭제하기
     public SocketService.ICallback callback2 = new SocketService.ICallback() {
-        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type, String msgid) {
+        public void recvMsg(String roomid, String userid, String userimg, String msg, String time, int type, String msgid, String preimg,
+                            String pretitle, String predesc) {
             Log.d("callback2", "실패한 동영상  adapter에서 삭제 "+msgid);
             adapter.delChatMsg(msgid);//최근걸 지우는게 아니라, type=4인걸...
            // addHandler();
@@ -489,6 +553,9 @@ public class ChatActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
+
+        //채팅방액티비티에 있음
+        inRoom = true;
 
         doBindService();
 
@@ -503,10 +570,11 @@ public class ChatActivity extends AppCompatActivity {
 
         //액션바에 백버튼만들기 위해
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        setTitle(roomtitle);
-
-        //채팅방액티비티에 있음
-        inRoom = true;
+        if (roomtitle == null) {
+            setTitle("같이 밥먹자");
+        } else {
+            setTitle(roomtitle);
+        }
 
         adapter = new ChatMessageAdapter(items, ChatActivity.this);
         sendBtn = (Button) findViewById(R.id.sendBtn);
@@ -625,10 +693,11 @@ public class ChatActivity extends AppCompatActivity {
         while (cursor.moveToNext()) {
             //cursor.getString() : 테이블의 실제 데이터 가져옴
             //cursor.getColumnIndex() : 테이블의 해당 컬럼이름을 가져옴
-            adapter.addChatMsg(cursor.getString(cursor.getColumnIndex("roomid")), cursor.getString(cursor.getColumnIndex("userimg")),
-                    cursor.getString(cursor.getColumnIndex("userid")), cursor.getString(cursor.getColumnIndex("msg")),
+            adapter.addChatMsg(cursor.getString(cursor.getColumnIndex("roomid")), cursor.getString(cursor.getColumnIndex("userid")),
+                    cursor.getString(cursor.getColumnIndex("userimg")), cursor.getString(cursor.getColumnIndex("msg")),
                     cursor.getString(cursor.getColumnIndex("time")), cursor.getInt(cursor.getColumnIndex("type")),
-                    cursor.getString(cursor.getColumnIndex("msgid")));
+                    cursor.getString(cursor.getColumnIndex("msgid")), cursor.getString(cursor.getColumnIndex("preimg")),
+                    cursor.getString(cursor.getColumnIndex("pretitle")), cursor.getString(cursor.getColumnIndex("predesc")));
 
         }
 
@@ -679,7 +748,7 @@ public class ChatActivity extends AppCompatActivity {
                         protocol.setTotalLen(String.valueOf(message.trim().getBytes().length + 133));
                         protocol.setRoomid(now_room);
                         protocol.setUserid(SaveSharedPreference.getUserid(getApplicationContext()));
-                        protocol.setUserimg(SaveSharedPreference.getUserimage(getApplicationContext()));
+                        protocol.setUserimg("http://13.124.77.49/thumbnail/"+SaveSharedPreference.getUserid(getApplicationContext())+".jpg");
                         protocol.setMsg(message);
 
                         Log.d("보내는 chat", "" + message.trim().getBytes().length + "/" + now_room + "/" + SaveSharedPreference.getUserid(getApplicationContext()) + "/"

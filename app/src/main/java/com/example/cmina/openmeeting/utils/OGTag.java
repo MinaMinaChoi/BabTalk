@@ -6,15 +6,15 @@ package com.example.cmina.openmeeting.utils;
 
 public class OGTag {
 
-    private String OgUrl;
+    //private String OgUrl;
     private String OgImageUrl;
     private String OgDescription;
     private String OgTitle;
 
-    public void setOgUrl(String ogUrl) {
+  /*  public void setOgUrl(String ogUrl) {
         OgUrl = ogUrl;
     }
-
+*/
     public void setOgImageUrl(String ogImageUrl) {
         OgImageUrl = ogImageUrl;
     }
@@ -27,10 +27,10 @@ public class OGTag {
         OgTitle = ogTitle;
     }
 
-    public String getOgUrl() {
+   /* public String getOgUrl() {
         return OgUrl;
     }
-
+*/
     public String getOgImageUrl() {
         return OgImageUrl;
     }

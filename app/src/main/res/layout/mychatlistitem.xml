@@ -52,6 +52,7 @@
             android:layout_height="wrap_content"
             android:id="@+id/recent_msg"
             android:layout_weight="1"
+            android:maxLines="1"
             android:paddingLeft="10dp"/>
 
 

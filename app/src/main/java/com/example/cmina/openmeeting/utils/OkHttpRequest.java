@@ -48,7 +48,7 @@ public class OkHttpRequest {
                 .post(body)
                 .build();
 
-        Log.i("확인", json.toString());
+        Log.i("OkHttpRequest post", json.toString());
         Call call = client.newCall(request);
         call.enqueue(callback);
         return call;

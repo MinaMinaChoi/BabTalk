@@ -1,11 +1,14 @@
 package com.example.cmina.openmeeting.adapter;
 
+import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,6 +16,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AlertDialog;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,9 +26,12 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.RequestManager;
 import com.example.cmina.openmeeting.activity.ChatActivity;
+import com.example.cmina.openmeeting.activity.ProfileActivity;
 import com.example.cmina.openmeeting.activity.WebViewActivity;
 import com.example.cmina.openmeeting.utils.ChatMessage;
 import com.example.cmina.openmeeting.R;
@@ -41,6 +48,8 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -54,10 +63,12 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
 
+import static com.example.cmina.openmeeting.R.id.chatMessage;
 import static com.example.cmina.openmeeting.activity.ChatActivity.realPath;
 import static com.example.cmina.openmeeting.activity.MainActivity.myDatabaseHelper;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_OFFSET;
 import static com.example.cmina.openmeeting.utils.Protocol.cliToServer;
+import static com.kakao.auth.StringSet.file;
 
 /**
  * Created by cmina on 2017-06-13.
@@ -91,14 +102,15 @@ public class ChatMessageAdapter extends BaseAdapter {
     }
 
     public class ViewHolder {
+
         TextView chatMessageTextView;
-        TextView chatTimeTextView;
         TextView chatUseridTextView;
         ImageView profileImageView;
 
         ImageView chatImageView;
         ImageView videoImage;
 
+        TextView chatTimeTextView;
         ProgressBar progressBar;
         ImageView sendfail;
 
@@ -116,21 +128,21 @@ public class ChatMessageAdapter extends BaseAdapter {
         View view = convertView;
         ViewHolder viewHolder;
 
-        final ChatMessage chatMessage = msgs.get(position);
-        LayoutInflater inflater;
+        final LayoutInflater inflater;
 
         if (view == null) {
             inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            //view = inflater.inflate(R.layout.chatmsgitem, null);
             view = inflater.inflate(R.layout.chatmsgitem, parent, false);
 
             viewHolder = new ViewHolder();
-            viewHolder.chatMessageTextView = (TextView) view.findViewById(R.id.chatMessage);
-            viewHolder.chatTimeTextView = (TextView) view.findViewById(R.id.chatTimeTextView);
+            viewHolder.chatMessageTextView = (TextView) view.findViewById(chatMessage);
             viewHolder.chatUseridTextView = (TextView) view.findViewById(R.id.useridTextView);
             viewHolder.profileImageView = (ImageView) view.findViewById(R.id.profileImage);
             viewHolder.chatImageView = (ImageView) view.findViewById(R.id.chatImg);
             viewHolder.videoImage = (ImageView) view.findViewById(R.id.videoplay);
 
+            viewHolder.chatTimeTextView = (TextView) view.findViewById(R.id.chatTimeTextView);
             viewHolder.progressBar = (ProgressBar) view.findViewById(R.id.progressBar);
             viewHolder.sendfail = (ImageView) view.findViewById(R.id.sendfail);
 
@@ -145,6 +157,10 @@ public class ChatMessageAdapter extends BaseAdapter {
             viewHolder = (ViewHolder) view.getTag();
         }
 
+        final ChatMessage chatMessage = msgs.get(position);
+       // System.out.println("getview:"+position+" "+convertView +"\n"+chatMessage.getMsg());
+
+        //viewholer에다 데이터 세팅
         //메시지 받은 시간 long으로 저장하고 보여줄때, 변환하기
         Date date = new Date(Long.valueOf(chatMessage.getMsgTime()));
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd, a hh:mm");
@@ -161,23 +177,23 @@ public class ChatMessageAdapter extends BaseAdapter {
 
         final LinearLayout chatMsgContainer = (LinearLayout) view.findViewById(R.id.chatContainer);
 
-
         //내가 보낸 메시지
         if (chatMessage.getUserid().equals(SaveSharedPreference.getUserid(context))) {
 
             viewHolder.profileImageView.setVisibility(View.GONE); //나의 이미지 안보이게
             viewHolder.chatUseridTextView.setVisibility(View.GONE); //나의 아이디도 안 보이게
+            viewHolder.chatTimeTextView.setVisibility(View.VISIBLE); //메시지 시간 보이게
 
-            if (chatMessage.getMsgtype() == 0)  { //일반메시지일 경우
+            if (chatMessage.getMsgtype() == 0) { //일반메시지일 경우
                 viewHolder.chatMessageTextView.setVisibility(View.VISIBLE);
+                viewHolder.chatMessageTextView.setBackground(context.getResources().getDrawable(R.drawable.bubble_right2));
+                viewHolder.chatMessageTextView.setText(chatMessage.getMsg());
                 viewHolder.chatImageView.setVisibility(View.GONE);
                 viewHolder.videoImage.setVisibility(View.GONE);
                 viewHolder.progressBar.setVisibility(View.GONE);
                 viewHolder.sendfail.setVisibility(View.GONE);
-                viewHolder.chatMessageTextView.setBackground(context.getResources().getDrawable(R.drawable.bubble_right2));
-                viewHolder.chatMessageTextView.setText(chatMessage.getMsg());
+                //viewHolder.chatTimeTextView.set
 
-                //수정중
                 //msg가 url형식일 경우, 미리보기 보여주기
                 String regex = "^(((http(s?))\\:\\/\\/)?)([0-9a-zA-Z\\-]+\\.)+[a-zA-Z]{2,6}(\\:[0-9]+)?(\\/\\S*)?$";
                 Pattern pattern = Pattern.compile(regex);
@@ -186,42 +202,18 @@ public class ChatMessageAdapter extends BaseAdapter {
                 if (matcher.find()) {
                     //형식이 도메인형식이라면..
                     viewHolder.previewLinear.setVisibility(View.VISIBLE);
-                    final OGTag ogTag = new OGTag();
-                    //addOGTypeMemo(chatMessage.getMsg(), ogTag, viewHolder);
-                    requestOgTag(chatMessage.getMsg(), ogTag, viewHolder);
 
-                    viewHolder.previewLinear.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View view) {
-                            //해당 url로 이동
-                            if (!ogTag.getOgUrl().toString().equals("")) {
-                                Intent intent = new Intent((ChatActivity)context, WebViewActivity.class);
-                                intent.putExtra("url", ogTag.getOgUrl().toString());
-                                intent.putExtra("title", ogTag.getOgTitle().toString());
-                                context.startActivity(intent);
-                            }
-                        }
-                    });
-
-                    viewHolder.chatMessageTextView.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View view) {
-                            if (!ogTag.getOgUrl().toString().equals("")) {
-                                Intent intent = new Intent((ChatActivity)context, WebViewActivity.class);
-                                intent.putExtra("url", ogTag.getOgUrl().toString());
-                                intent.putExtra("title", ogTag.getOgTitle().toString());
-                                context.startActivity(intent);
-                            }
-                        }
-                    });
+                    viewHolder.previewTitle.setText(chatMessage.getPreTitle());
+                    viewHolder.previewDesc.setText(chatMessage.getPreDesc());
+                    Glide.with(context).load(chatMessage.getPreImg()).placeholder(R.drawable.placeholder).into(viewHolder.previewImg);
 
                 } else {
-                   //일반 메시지
+                    //일반 메시지
                     viewHolder.previewLinear.setVisibility(View.GONE);
                 }
 
 
-            } else if (chatMessage.getMsgtype() == 1){ //이미지일경우,
+            } else if (chatMessage.getMsgtype() == 1) { //이미지일경우,
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
                 viewHolder.videoImage.setVisibility(View.GONE);
                 viewHolder.progressBar.setVisibility(View.GONE);
@@ -231,29 +223,29 @@ public class ChatMessageAdapter extends BaseAdapter {
                 Glide.with(context).load(context.getFileStreamPath(chatMessage.getMsg())).into(viewHolder.chatImageView);
 ///data/data/com.androidhuman.app/files/filename.ext
 
-            } else {
+            } else { //동영상일 경우
 
                 Bitmap image = null;
 
                 //보내기 실패하면, 엑스표시
-                if (chatMessage.getMsgtype()== 4 ) {
-                    image = ThumbnailUtils.createVideoThumbnail(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+"/"+chatMessage.getMsg(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
-                    Log.d("msgtype =4일 때 ", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+"/"+chatMessage.getMsg());
+                if (chatMessage.getMsgtype() == 4) {
+                    image = ThumbnailUtils.createVideoThumbnail(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + chatMessage.getMsg(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                    Log.d("msgtype =4일 때 ", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + chatMessage.getMsg());
                     viewHolder.chatTimeTextView.setVisibility(View.GONE);
                     viewHolder.sendfail.setVisibility(View.VISIBLE);
                     viewHolder.videoImage.setVisibility(View.GONE);
                 } else {
-                    image = ThumbnailUtils.createVideoThumbnail(""+context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
-                    Log.d("msgtype =2일 때 ", ""+context.getFileStreamPath(chatMessage.getMsg()));
+                    image = ThumbnailUtils.createVideoThumbnail("" + context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                    Log.d("msgtype =2일 때 ", "" + context.getFileStreamPath(chatMessage.getMsg()));
                     viewHolder.chatTimeTextView.setVisibility(View.VISIBLE);
                     viewHolder.sendfail.setVisibility(View.GONE);
                     viewHolder.videoImage.setVisibility(View.VISIBLE);
                 }
 
+                viewHolder.chatImageView.setVisibility(View.VISIBLE);
                 viewHolder.videoImage.setVisibility(View.VISIBLE);
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
                 viewHolder.previewLinear.setVisibility(View.GONE);
-                viewHolder.chatImageView.setVisibility(View.VISIBLE);
 
                 if (image != null) {
                     viewHolder.chatImageView.setImageBitmap(image);
@@ -267,27 +259,34 @@ public class ChatMessageAdapter extends BaseAdapter {
         } else if (chatMessage.getUserid().equals("알림")) {
 
             chatMsgContainer.setGravity(Gravity.CENTER);
+            viewHolder.chatTimeTextView.setVisibility(View.GONE);
             viewHolder.profileImageView.setVisibility(View.GONE);
             viewHolder.chatUseridTextView.setVisibility(View.GONE);
             viewHolder.chatImageView.setVisibility(View.GONE);
+            viewHolder.videoImage.setVisibility(View.GONE);
             viewHolder.sendfail.setVisibility(View.GONE);
+            viewHolder.progressBar.setVisibility(View.GONE);
             viewHolder.previewLinear.setVisibility(View.GONE);
             viewHolder.chatMessageTextView.setVisibility(View.VISIBLE);
+            viewHolder.chatMessageTextView.setTextColor(R.color.Gray);
+            viewHolder.chatMessageTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
             viewHolder.chatMessageTextView.setText(chatMessage.getMsg());
             viewHolder.chatMessageTextView.setBackground(null);
 
         } else { //다른 사람이 보낸 메시지
             viewHolder.profileImageView.setVisibility(View.VISIBLE);
+            Glide.with(context).load(chatMessage.getProfileImg()).bitmapTransform(new CropCircleTransformation(context)).into(viewHolder.profileImageView);
             viewHolder.chatUseridTextView.setVisibility(View.VISIBLE);
+            viewHolder.chatTimeTextView.setVisibility(View.VISIBLE); //메시지 시간 보이게
 
-            if (chatMessage.getMsgtype() == 0)  { //일반메시지일 경우
+            if (chatMessage.getMsgtype() == 0) { //일반메시지일 경우
                 viewHolder.chatMessageTextView.setVisibility(View.VISIBLE);
+                viewHolder.chatMessageTextView.setText(chatMessage.getMsg());
+                viewHolder.chatMessageTextView.setBackground(context.getResources().getDrawable(R.drawable.bubble_left2));
                 viewHolder.chatImageView.setVisibility(View.GONE);
                 viewHolder.videoImage.setVisibility(View.GONE);
                 viewHolder.progressBar.setVisibility(View.GONE);
                 viewHolder.sendfail.setVisibility(View.GONE);
-                viewHolder.chatMessageTextView.setText(chatMessage.getMsg());
-                viewHolder.chatMessageTextView.setBackground(context.getResources().getDrawable(R.drawable.bubble_left2));
 
                 //수정중
                 //msg가 url형식일 경우, 미리보기 보여주기
@@ -296,43 +295,20 @@ public class ChatMessageAdapter extends BaseAdapter {
                 Matcher matcher = pattern.matcher(chatMessage.getMsg());
 
                 if (matcher.find()) {
-                    Log.d("ChatMessageAdapter", ""+chatMessage.getMsg());
+                    Log.d("ChatMessageAdapter", "" + chatMessage.getMsg());
                     //형식이 도메인형식이라면..
                     viewHolder.previewLinear.setVisibility(View.VISIBLE);
-                    final OGTag ogTag = new OGTag();
-                    requestOgTag(chatMessage.getMsg(), ogTag, viewHolder);
 
-                    viewHolder.previewLinear.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View view) {
-                            //해당 url로 이동
-                            if (!ogTag.getOgUrl().toString().equals("")) {
-                                Intent intent = new Intent((ChatActivity)context, WebViewActivity.class);
-                                intent.putExtra("url", ogTag.getOgUrl().toString());
-                                intent.putExtra("title", ogTag.getOgTitle().toString());
-                                context.startActivity(intent);
-                            }
-                        }
-                    });
-
-                    viewHolder.chatMessageTextView.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View view) {
-                            if (!ogTag.getOgUrl().toString().equals("")) {
-                                Intent intent = new Intent(context, WebViewActivity.class);
-                                intent.putExtra("url", ogTag.getOgUrl().toString());
-                                intent.putExtra("title", ogTag.getOgTitle().toString());
-                                context.startActivity(intent);
-                            }
-                        }
-                    });
+                    viewHolder.previewTitle.setText(chatMessage.getPreTitle());
+                    viewHolder.previewDesc.setText(chatMessage.getPreDesc());
+                    Glide.with(context).load(chatMessage.getPreImg()).placeholder(R.drawable.placeholder).into(viewHolder.previewImg);
 
                 } else {
                     //일반 메시지
                     viewHolder.previewLinear.setVisibility(View.GONE);
                 }
 
-            } else if (chatMessage.getMsgtype() == 1){ //이미지일경우,
+            } else if (chatMessage.getMsgtype() == 1) { //이미지일경우,
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
                 viewHolder.chatImageView.setVisibility(View.VISIBLE);
                 viewHolder.videoImage.setVisibility(View.GONE);
@@ -348,7 +324,7 @@ public class ChatMessageAdapter extends BaseAdapter {
                 viewHolder.sendfail.setVisibility(View.GONE);
                 viewHolder.progressBar.setVisibility(View.GONE);
                 viewHolder.previewLinear.setVisibility(View.GONE);
-                Bitmap image =ThumbnailUtils.createVideoThumbnail(""+context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                Bitmap image = ThumbnailUtils.createVideoThumbnail("" + context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
                 if (image != null) {
                     viewHolder.chatImageView.setImageBitmap(image);
                 } else {
@@ -358,31 +334,73 @@ public class ChatMessageAdapter extends BaseAdapter {
 
             chatMsgContainer.setGravity(Gravity.LEFT);
         }
+        //데이터 세팅 끝
 
 
         //동영상일 경우, 썸네일을 클릭하면, 동영상 재생이 되도록!
         viewHolder.chatImageView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (chatMessage.getMsgtype() == 2 ) { //동영상일 경우
-                    Intent intent = new Intent();
-                    intent.setAction(Intent.ACTION_VIEW);
-                    File videoFile = new File(""+context.getFileStreamPath(chatMessage.getMsg()));
-                    videoFile.setReadable(true, false); //읽을 수 있도록...
-                    Uri uriFromVideoFile = Uri.fromFile(videoFile);
-                    Log.d("확인", "path : "+context.getFileStreamPath(chatMessage.getMsg()) + " uri : "+ uriFromVideoFile);
 
-                    intent.setDataAndType(uriFromVideoFile, "video/*");
-                    context.startActivity(intent);
-                } else if (chatMessage.getMsgtype() == 4 ) { //보내기 실패했을 때, 썸네일 클릭하면 다시 보내지도록..
-                    //수정중
+                if (chatMessage.getMsgtype() == 1) { //이미지 일경우
+
+                    AlertDialog.Builder builder = new AlertDialog.Builder(context);
+                    AlertDialog alertDialog = builder.setMessage("이미지")
+                            .setPositiveButton("다운로드", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+
+                                    //2017.08.04
+                                    new DownloadAsync().execute(chatMessage.getMsg());
+
+                                }
+                            }).setNegativeButton("아니오", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    return;
+                                }
+                            }).create();
+                    alertDialog.show();
+
+                } else if (chatMessage.getMsgtype() == 2) { //동영상일 경우
+
+                    AlertDialog.Builder builder = new AlertDialog.Builder(context);
+                    AlertDialog alertDialog = builder.setMessage("동영상")
+                            .setNegativeButton("바로 재생", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+
+                                    Intent intent = new Intent();
+                                    intent.setAction(Intent.ACTION_VIEW);
+                                    File videoFile = new File("" + context.getFileStreamPath(chatMessage.getMsg()));
+                                    videoFile.setReadable(true, false); //읽을 수 있도록...
+                                    intent.setDataAndType(Uri.fromFile(videoFile), "video/*");
+                                    // 2017.08.03
+                                    //No Activity found to handle Intent { act=android.intent.action.VIEW dat=file:///data/data/com.example.cmina.openmeeting/files/1501742009022.mp4 typ=video }
+                                    context.startActivity(intent);
+
+                                }
+                            }).setPositiveButton("다운로드", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    //2017.08.04
+                                    new DownloadAsync().execute(chatMessage.getMsg());
+
+                                }
+                            }).create();
+
+                    alertDialog.show();
+
+
+                } else if (chatMessage.getMsgtype() == 4) { //보내기 실패했을 때, 썸네일 클릭하면 다시 보내지도록..
+
                     AlertDialog.Builder builder = new AlertDialog.Builder(context);
                     AlertDialog alertDialog = builder.setMessage("파일을 재전송하시겠습니까?")
                             .setPositiveButton("재전송", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialogInterface, int i) {
 
-                                    realPath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+"/"+chatMessage.getMsg();
+                                    realPath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + chatMessage.getMsg();
 
                                     Protocol protocol = new Protocol(244);
                                     protocol.setTotalLen(String.valueOf(244));
@@ -395,7 +413,7 @@ public class ChatMessageAdapter extends BaseAdapter {
                                     protocol.setMsgId(chatMessage.getMsgTime());
                                     protocol.setCheckType(String.valueOf(cliToServer));
 
-                                    ((ChatActivity)context).socketService.send_byte(protocol.getPacket());
+                                    ((ChatActivity) context).socketService.send_byte(protocol.getPacket());
                                 }
                             })
                             .setNegativeButton("삭제", new DialogInterface.OnClickListener() {
@@ -410,7 +428,7 @@ public class ChatMessageAdapter extends BaseAdapter {
                                     try {
                                         object.put("userid", chatMessage.getUserid());
                                         object.put("filename", chatMessage.getMsg());
-                                        Log.d("ChatMessageAdapter", "보내는 정보확인"+chatMessage.getUserid() + chatMessage.getMsg());
+                                        Log.d("ChatMessageAdapter", "보내는 정보확인" + chatMessage.getUserid() + chatMessage.getMsg());
 
                                         OkHttpRequest request = new OkHttpRequest();
                                         request.post("http://13.124.77.49/delTempFile.php", object.toString(), new Callback() {
@@ -428,9 +446,9 @@ public class ChatMessageAdapter extends BaseAdapter {
                                                 if (responseStr.equals("1")) {
                                                     //삭제 성공
                                                     myDatabaseHelper.removetype4(chatMessage.getMsgTime());
-                                                    ((ChatActivity)context).socketService.mCallback2.recvMsg(chatMessage.getRoomid(), chatMessage.getProfileImg(), chatMessage.getUserid(), chatMessage.getMsg(), chatMessage.getRoomid(), 2, chatMessage.getMsgTime());
-                                                    ((ChatActivity)context).addHandler();
-
+                                                    ((ChatActivity) context).socketService.mCallback2.recvMsg(chatMessage.getRoomid(), chatMessage.getProfileImg(), chatMessage.getUserid(), chatMessage.getMsg(), chatMessage.getRoomid(), 2, chatMessage.getMsgTime(),
+                                                            "", "", "");
+                                                    ((ChatActivity) context).addHandler();
 
                                                 } else {
 
@@ -442,8 +460,6 @@ public class ChatMessageAdapter extends BaseAdapter {
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
-
-
                                 }
                             })
                             .create();
@@ -453,12 +469,38 @@ public class ChatMessageAdapter extends BaseAdapter {
             }
         });
 
-        return view;
+        viewHolder.previewLinear.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!chatMessage.getMsg().equals("")) {
+                    Intent intent = new Intent((ChatActivity) context, WebViewActivity.class);
+                    intent.putExtra("url", chatMessage.getMsg());
+                    intent.putExtra("title", chatMessage.getPreTitle());
+                    context.startActivity(intent);
+                }
+            }
+        });
 
+        //상대방 프로필이미지 클릭
+        viewHolder.profileImageView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!chatMessage.getUserid().equals(SaveSharedPreference.getUserid(context))) {
+                    //서버로 userid보내서, 해당 회원의 정보 보여주기!
+                    Intent intent = new Intent(context, ProfileActivity.class);
+                    intent.putExtra("userid", chatMessage.getUserid());
+                    context.startActivity(intent);
+                }
+            }
+        });
+
+        return view;
     }
 
-    public void addChatMsg(String roomid, String imgUrl, String userid, String msg, String msgTime, int msgtype, String msgid) {
-        ChatMessage chatMessage = new ChatMessage(roomid, imgUrl, userid, msg,msgTime, msgtype, msgid);
+    public void addChatMsg(String roomid, String userid, String imgUrl, String msg, String msgTime, int msgtype, String msgid,
+                           String preImg, String preTitle, String preDesc) {
+        ChatMessage chatMessage = new ChatMessage(roomid, imgUrl, userid, msg, msgTime, msgtype, msgid,
+                preImg, preTitle, preDesc);
 
         chatMessage.setRoomid(roomid);
         chatMessage.setProfileImg(imgUrl);
@@ -467,13 +509,16 @@ public class ChatMessageAdapter extends BaseAdapter {
         chatMessage.setMsgTime(msgTime);
         chatMessage.setMsgtype(msgtype);
         chatMessage.setMsgid(msgid);
+        chatMessage.setPreImg(preImg);
+        chatMessage.setPreTitle(preTitle);
+        chatMessage.setPreDesc(preDesc);
 
         msgs.add(chatMessage);
 
     }
 
     public void delChatMsg(String msgid) {
-        for (int i =0; i< msgs.size(); i++) {
+        for (int i = 0; i < msgs.size(); i++) {
             ChatMessage chatMessage = msgs.get(i);
             //type이 5인 메시지 지우기
             if (chatMessage.getMsgtype() == 4 && chatMessage.getMsgTime().equals(msgid)) {
@@ -483,97 +528,89 @@ public class ChatMessageAdapter extends BaseAdapter {
         }
     }
 
-    private void requestOgTag(final String url, final OGTag ret, final ViewHolder viewHolder) {
-        OkHttpRequest request = new OkHttpRequest();
 
-        try {
-            request.get(url, new Callback() {
-                @Override
-                public void onFailure(Call call, IOException e) {
-                    Log.e("request failure", call.toString());
 
+    private boolean copyFile(File file , String save_file){
+        boolean result;
+      //  File file = new File(infile);
+        if(file!=null&&file.exists()){
+            try {
+                FileInputStream fis = new FileInputStream(file);
+                FileOutputStream newfos = new FileOutputStream(save_file);
+                int readcount=0;
+                byte[] buffer = new byte[1024];
+                while((readcount = fis.read(buffer,0,1024))!= -1){
+                    newfos.write(buffer,0,readcount);
                 }
+                newfos.close();
+                fis.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            result = true;
+        }else{
+            result = false;
+        }
+        return result;
+    }
 
-                @Override
-                public void onResponse(Call call, Response response) throws IOException {
 
-                    String responseStr = response.body().string();
+    class DownloadAsync extends AsyncTask<String, String , Boolean> {
 
-                    Document doc = Jsoup.parse(responseStr);
-                    Elements ogTags = doc.select("meta[property^=og:]");
+        private ProgressDialog progressDialog;
 
-                    if (ogTags.size() > 0) {
-                        // 필요한 OGTag를 추려낸다
-                        for (int i = 0; i < ogTags.size(); i++) {
-                            Element tag = ogTags.get(i);
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            progressDialog = new ProgressDialog(context);
+            progressDialog.setMessage("다운로드중...");
+            progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+            progressDialog.setCancelable(false);
+            progressDialog.show();
+        }
 
-                            String text = tag.attr("property");
-                            if ("og:url".equals(text)) {
-                                ret.setOgUrl(tag.attr("content"));
-                            } else if ("og:image".equals(text)) {
-                                ret.setOgImageUrl(tag.attr("content"));
-                            } else if ("og:description".equals(text)) {
-                                ret.setOgDescription(tag.attr("content"));
-                            } else if ("og:title".equals(text)) {
-                                ret.setOgTitle(tag.attr("content"));
-                            }
-                        }
+        @Override
+        protected Boolean doInBackground(String... params) {
 
-                        // 필요한 작업을 한다.
-                        setData(ret.getOgUrl(), ret.getOgImageUrl(), ret.getOgDescription(), ret.getOgTitle(), viewHolder);
+            boolean result;
+            String filedir = Environment.getExternalStorageDirectory().getAbsolutePath() + "/babtalk/";
+            File file = new File(filedir);
+            if (!file.isDirectory()) {
+                file.mkdir();
+            }
 
-                    } else {
-                        Log.e("ogTags", "없음");
+            File videoFile = new File("" + context.getFileStreamPath(params[0]));
 
-                        Elements imgs = doc.getElementsByTag("img");
-                        String src="";
-                        if (imgs.size() > 0) {
-                            src = imgs.get(0).attr("src");
-                            Log.d("<img>태그들 중에서 첫번 째 요소", "//"+src);
-                        }
-
-                        doc.title();
-
-                        System.out.println("Title: " + doc.title());
-                        System.out.println("Meta Title: " + doc.select("meta[name=title]").attr("content"));
-                        System.out.println("Meta Description: " + doc.select("meta[name=description]").attr("content"));
-
-                        setData(url,src, doc.select("meta[name=description]").attr("content"), doc.title(), viewHolder);
-
-                        return;
-
+            if(file!=null&&file.exists()){
+                try {
+                    FileInputStream fis = new FileInputStream(videoFile);
+                    FileOutputStream newfos = new FileOutputStream(filedir+params[0]);
+                    int readcount=0;
+                    byte[] buffer = new byte[1024];
+                    while((readcount = fis.read(buffer,0,1024))!= -1){
+                        newfos.write(buffer,0,readcount);
                     }
-
+                    newfos.close();
+                    fis.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            });
-        } catch (IOException e) {
-            e.printStackTrace();
+                result = true;
+            }else{
+                result = false;
+            }
+            return result;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean aBoolean) {
+            super.onPostExecute(aBoolean);
+            progressDialog.dismiss();
+            Toast.makeText(context, "다운로드 완료되었습니다", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void setData(final String url, final String preImg, final String desc, final String title, final ViewHolder viewHolder) {
-
-        final Handler handler = new Handler(Looper.getMainLooper());
-        //오래 걸리는 작업 work스레드에서 실행.
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        //work스레드내부에서 명령이 실행 되는 것이 아니라.
-                        //handler.post..에 의해, 메시지 큐에 추가 되어 uithread가 차례대로 처리
-
-                        viewHolder.chatMessageTextView.setText(url);
-                        viewHolder.previewDesc.setText(desc);
-                        viewHolder.previewTitle.setText(title);
-                        Glide.with(context).load(preImg).into(viewHolder.previewImg);
-
-                    }
-                });
-            }
-        }).start();
-
-    }
 
 }
+
+

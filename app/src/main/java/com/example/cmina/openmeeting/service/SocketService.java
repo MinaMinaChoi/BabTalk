@@ -1,19 +1,20 @@
 package com.example.cmina.openmeeting.service;
 
+import android.app.AlarmManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.net.Uri;
 import android.os.Binder;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
@@ -28,8 +29,16 @@ import android.widget.Toast;
 import com.bumptech.glide.Glide;
 import com.example.cmina.openmeeting.R;
 import com.example.cmina.openmeeting.activity.ChatActivity;
+import com.example.cmina.openmeeting.utils.MyDatabaseHelper;
+import com.example.cmina.openmeeting.utils.OGTag;
+import com.example.cmina.openmeeting.utils.OkHttpRequest;
 import com.example.cmina.openmeeting.utils.Protocol;
 import com.example.cmina.openmeeting.utils.SaveSharedPreference;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -41,36 +50,30 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.RandomAccessFile;
 import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import jp.wasabeef.glide.transformations.CropCircleTransformation;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
 
-import static android.R.attr.left;
-import static android.R.attr.name;
-import static android.R.attr.offset;
-import static android.R.attr.path;
-import static android.R.attr.textAppearanceMedium;
-import static android.R.attr.type;
-import static android.os.Environment.getExternalStoragePublicDirectory;
-import static com.example.cmina.openmeeting.R.id.up;
-import static com.example.cmina.openmeeting.R.id.userid;
 import static com.example.cmina.openmeeting.R.id.useridTextView;
-import static com.example.cmina.openmeeting.activity.ChatActivity.duringDownload;
 import static com.example.cmina.openmeeting.activity.ChatActivity.getFileName;
-import static com.example.cmina.openmeeting.activity.ChatActivity.getName;
-import static com.example.cmina.openmeeting.activity.ChatActivity.getRealPathFromUri;
-import static com.example.cmina.openmeeting.activity.ChatActivity.getUriId;
+
 import static com.example.cmina.openmeeting.activity.ChatActivity.now_room;
 
 import static com.example.cmina.openmeeting.activity.ChatActivity.realPath;
 import static com.example.cmina.openmeeting.activity.MainActivity.cursor;
 import static com.example.cmina.openmeeting.activity.MainActivity.myDatabaseHelper;
+import static com.example.cmina.openmeeting.receiver.RestartReceiver.ACTION_RESTART_SERVICE;
+import static com.example.cmina.openmeeting.receiver.WifiChangeReceiver.EVENT_NETWORK_CHAGED;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_IMG;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MOVIE;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_CHAT_MSG;
@@ -86,11 +89,15 @@ import static com.example.cmina.openmeeting.utils.Protocol.serverToCli;
 
 public class SocketService extends Service {
 
+    //wifi, 3g 변경을 인지하기 위해
+    private BroadcastReceiver receiver;
+
     public long sendCheckTime; //소켓연결상태 확인 메시지 보낸시간
     public long lastReadTime; //마지막으로 메시지를 읽은 시간
     public long videosendTime; //비디오파일을 보낸 시간
 
     public boolean duringSending = false;
+    public boolean duringDownload = false;
 
     public static boolean inRoom = false;
 
@@ -119,11 +126,33 @@ public class SocketService extends Service {
         stopSelf();
     }
 
-    //서비스 이미 실행중이면 oncreate호출되지 않는다
-    //아닌데...왜 이미지받고나면 socketSerivce oncreate() 시작되지?
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+    //    registerRestartAlarm(true);
+        if (receiver != null) {
+            unregisterReceiver(receiver);
+        }
+/*      if (os != null && is != null && socket != null) {
+            try {
+                Log.d("SocketService", "onDestroy");
+                os.close();
+                is.close();
+                dis.close();
+                dos.close();
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }*/
+        Toast.makeText(this, "SocketService destroyed", Toast.LENGTH_SHORT).show();
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+      //  registerRestartAlarm(false);
+        Toast.makeText(this, "SocketService 실행", Toast.LENGTH_SHORT).show();
         //소켓 연결 스레드 실행
         if (!connected) {
             serviceSocketThread = new ServiceSocketThread();
@@ -137,7 +166,10 @@ public class SocketService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d("SocketService", "onStartCommand");
-
+        // startForeground(1, new Notification());
+       /* MyNotiControl cl = new MyNotiControl(SocketService.this);
+        startForeground(1, cl.getNoti());
+*/
         return START_STICKY;
 
     }
@@ -159,7 +191,8 @@ public class SocketService extends Service {
 
     //콜백인터페이스 선언
     public interface ICallback {
-        public void recvMsg(String roomid, String userimg, String userid, String msg, String time, int type, String msgid); //액티비티에서 선언한 콜백함수
+        public void recvMsg(String roomid, String userid, String userimg, String msg, String time, int type, String msgid,
+                            String preimg, String pretitle, String predesc); //액티비티에서 선언한 콜백함수
     }
 
 
@@ -194,10 +227,33 @@ public class SocketService extends Service {
 
                 Log.d("소켓연결 시도", "lastReadTime : " + lastReadTime + "// sendCheckTime : " + sendCheckTime);
 
+                //2017.08.03 수정중
+                IntentFilter intentfilter = new IntentFilter();
+                intentfilter.addAction(EVENT_NETWORK_CHAGED);
+                receiver = new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        //임의로 소켓 끊기, 다시 접속하도록
+                        if (os != null && is != null && socket != null) {
+                            Log.d("SocketService receiver 안", "" + EVENT_NETWORK_CHAGED);
+
+                            try {
+                                os.close();
+                                is.close();
+                                dis.close();
+                                dos.close();
+                                socket.close();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+
+                        }
+                    }
+                };
+                registerReceiver(receiver, intentfilter);
+
                 if (socket != null) { //정상적으로 소켓 연결되었으면...
-
                     Log.d("SocketService 소켓연결 성공", socket.toString());
-
                     toastHandler("소켓 연결에 성공했습니다");
                     is = socket.getInputStream();
                     dis = new DataInputStream(is);
@@ -206,11 +262,11 @@ public class SocketService extends Service {
 
                     //소켓접속하고 바로 userid보내기!
                     String userid = SaveSharedPreference.getUserid(getApplicationContext());
-                    //  dos.writeUTF(userid);
-                    //   Log.d("서버로 userid보냄", userid);
 
                     //바로 sqlite에 저장된 최신메시지의 msgid 서버로 보냄.
-                    Cursor cursor = myDatabaseHelper.getRecentMsgID();
+                    myDatabaseHelper = new MyDatabaseHelper(SocketService.this);
+                    myDatabaseHelper.open();
+                    cursor = myDatabaseHelper.getRecentMsgID();
                     cursor.moveToFirst();
                     String msgid = "0";
                     if (cursor.getCount() > 0) {
@@ -222,15 +278,16 @@ public class SocketService extends Service {
                     }
 
                     if (userid.equals("")) {
-                        userid="noLogin";
+                        userid = "noLogin";
                     }
 
                     dos.writeUTF(userid + "|" + msgid);
+
                     Log.d("서버로 userid, msgid보냄", userid + msgid);
 
                 }
             } catch (UnknownHostException e) {
-                toastHandler("알 수 없는 호스트");
+                // toastHandler("알 수 없는 호스트");
                 e.printStackTrace();
             } catch (IOException e) {
                 // toastHandler("소켓 연결에 실패했습니다");
@@ -288,9 +345,14 @@ public class SocketService extends Service {
                             if (duringSending) {
                                 //sqlite와 adapter에 추가.
 
+                                if (inRoom) {
+                                    mCallback.recvMsg(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "",
+                                            "", "", "");
+                                }
+
                                 //정상적으로 추가
-                                myDatabaseHelper.insertChatlogs(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "");
-                                mCallback.recvMsg(now_room, SaveSharedPreference.getUserimage(SocketService.this), SaveSharedPreference.getUserid(SocketService.this), getFileName(realPath), "" + now_time, 4, "");
+                                myDatabaseHelper.insertChatlogs(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "",
+                                        "", "", "");
                                 Log.e("보내다가 실패", now_room + " / " + getFileName(realPath) + " / " + now_time);
                             }
                             break;
@@ -387,6 +449,36 @@ public class SocketService extends Service {
 
                                     //받은 시간
                                     long curr = System.currentTimeMillis();
+
+                                    //여기에서 날짜비교를 해야겠군.
+                                    //채팅방밖에서 메시지 받을 경우에도 날짜선 추가해주기 위해
+                                    cursor = myDatabaseHelper.getRecentTime(roomid);
+                                    cursor.moveToFirst();
+                                    if (cursor.getCount() > 0) {
+
+                                        Date date = new Date(Long.parseLong(cursor.getString(cursor.getColumnIndex("time"))));
+                                        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss");
+
+                                        String recenttime = simpleDateFormat.format(date).substring(0, 10);
+                                        Date nowdate = new Date(curr); //새로 받은 메시지의 받은시간 long
+
+                                        String nowtime = simpleDateFormat.format(nowdate).substring(0, 10);
+
+                                        //Log.d("날짜선 추가", recenttime + "/nowtime " + nowtime);
+
+                                        if (nowtime.compareTo(recenttime) > 0) {
+                                            //현재시간이 최근메시지시간보다 크면, 날짜선 추가
+                                            myDatabaseHelper.insertChatlogs(roomid, "알림", "", nowtime, "" + curr, 0, "" + curr, "", "", "");
+                                            //mCallback이 널이 뜨네....이걸 해결해야겠구만..
+                                            //그래야, 콜백함수에 insert넣는 것도 할 수 있음.
+                                            if (now_room.equals(roomid) && inRoom) {
+                                                mCallback.recvMsg(roomid, "알림", "", nowtime, "" + curr, 0, "" + curr, "", "", "");
+                                                //Log.d("Socket Service 날짜선", roomid + userid);
+                                            }
+                                        }
+                                    }
+
+
                                     Date date = new Date(curr);
                                     SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd, a hh:mm");
                                     String time = simpleDateFormat.format(date).toString();
@@ -399,35 +491,39 @@ public class SocketService extends Service {
                                     cursor = myDatabaseHelper.getVideoInfo(protocol.getMsgId());
                                     cursor.moveToFirst();
                                     if (cursor.getCount() > 0) {
+                                        //실패한 거 다시 받을 때
                                         myDatabaseHelper.removetype4(protocol.getMsgId());
-                                        mCallback2.recvMsg(roomid, userimg, userid, filename, "" + curr, 2, protocol.getMsgId());
+                                        mCallback2.recvMsg(roomid, userid, userimg, filename, "" + curr, 2, protocol.getMsgId(), "", "", "");
 
-
+                                        // mCallback.recvMsg(roomid, userid, userimg, filename, "" + curr, 2, msgid, "", "", "");
+                                        Log.e("SocketService video", inRoom + "" + now_room);
+                                        if (now_room.equals(roomid) && inRoom) {
+                                            mCallback.recvMsg(roomid, userid, userimg, filename, "" + curr, 2, msgid, "", "", "");
+                                        } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
+                                            if (!userid.equals("알림")) {
+                                                sendNotification(userimg, userid, "동영상", roomid, time.substring(12));
+                                                showCustomToast(userid, userimg, "동영상");
+                                            }
+                                        }
                                         //이어받기의 경우, msgid에 로컬에서 실패한 시간이 들어감.
                                         //msgid는 파일네임에서 추출! 서버에 도착한시간임.
-                                        myDatabaseHelper.insertChatlogs(roomid, userid, userimg, filename, "" + curr, 2, msgid);
-
-                                        if (now_room.equals(roomid) && inRoom) {
-                                            mCallback.recvMsg(roomid, userimg, userid, filename, "" + curr, 2, msgid);
-                                        } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
-                                            if (!userid.equals("알림")) {
-                                                sendNotification(userimg, userid, "동영상", roomid, time.substring(12));
-                                                showCustomToast(userid, userimg, "동영상");
-                                            }
-                                        }
+                                        myDatabaseHelper.insertChatlogs(roomid, userid, userimg, filename, "" + curr, 2, msgid, "", "", "");
 
                                     } else {
-                                        //정상적으로 추가
-                                        myDatabaseHelper.insertChatlogs(roomid, userid, userimg, filename, "" + curr, 2, msgid);
-
+                                        //최초추가
+                                        //mCallback.recvMsg(roomid, userid, userimg, filename, "" + curr, 2, msgid, "", "", "");
+                                        Log.e("SocketService video", inRoom + "" + now_room);
                                         if (now_room.equals(roomid) && inRoom) {
-                                            mCallback.recvMsg(roomid, userimg, userid, filename, "" + curr, 2, msgid);
+                                            mCallback.recvMsg(roomid, userid, userimg, filename, "" + curr, 2, msgid, "", "", "");
                                         } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
                                             if (!userid.equals("알림")) {
                                                 sendNotification(userimg, userid, "동영상", roomid, time.substring(12));
                                                 showCustomToast(userid, userimg, "동영상");
                                             }
                                         }
+
+                                        //콜백함수에다가 sqlite 추가
+                                        myDatabaseHelper.insertChatlogs(roomid, userid, userimg, filename, "" + curr, 2, msgid, "", "", "");
                                     }
 
                                     Log.d("동영상 확인", "totalLen=" + total_len + "/" + roomid + "/" + userid + "/" + userimg + "/" + filename + "/" + protocol.getMsgId());
@@ -454,10 +550,14 @@ public class SocketService extends Service {
                                     //만약, 서버로부터 오는 새로운 메시지가 없다면..... 위에....
                                 }
 
+                                //수정중 2017.08.03
+                                //하나의 패킷이 완성 되었으면, 바로 분석!
+                                int packetType = Integer.parseInt(protocol.getProtocolType());
+                                inmessage(packetType, protocol);
+
                                 //총길이보다 덜 받았을 때...
                                 while (recv_len < total_len) {
                                     if (is.available() > 0) {
-
                                         //마지막으로 메시지를 받은 시간.
                                         lastReadTime = System.currentTimeMillis();
 
@@ -489,9 +589,6 @@ public class SocketService extends Service {
                                     }
                                 }
 
-                                int packetType = Integer.parseInt(protocol.getProtocolType());
-
-                                inmessage(packetType, protocol);
 
                                 boolean whileCheck = false;
 
@@ -579,6 +676,7 @@ public class SocketService extends Service {
                                     inmessage(packetType1, protocol);
 
                                 }
+
                             }
 
                         } catch (IOException e) {
@@ -594,9 +692,13 @@ public class SocketService extends Service {
                                 if (duringSending) {
                                     //sqlite와 adapter에 추가.
 
+                                    if (inRoom) {
+                                        mCallback.recvMsg(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time,
+                                                "", "", "");
+                                    }
                                     //정상적으로 추가
-                                    myDatabaseHelper.insertChatlogs(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time);
-                                    mCallback.recvMsg(now_room, SaveSharedPreference.getUserimage(SocketService.this), SaveSharedPreference.getUserid(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time);
+                                    myDatabaseHelper.insertChatlogs(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time,
+                                            "", "", "");
                                     Log.e("보내다가 실패", now_room + " / " + getFileName(realPath) + " / " + now_time);
                                 }
                             }
@@ -618,6 +720,7 @@ public class SocketService extends Service {
 
                             //다시 연결
                             connect();
+                            unregisterReceiver(receiver);
                             Log.d("SocketService", "소켓연결 다시");
                         }
 
@@ -634,7 +737,6 @@ public class SocketService extends Service {
     }
 
     private void inmessage(int protocoltype, Protocol protocol) {
-
         //받은 시간
         long curr = System.currentTimeMillis();
 
@@ -654,9 +756,41 @@ public class SocketService extends Service {
         String msg = "";
 
 
+        //여기에서 날짜비교를 해야겠군.
+        //채팅방밖에서 메시지 받을 경우에도 날짜선 추가해주기 위해
+        cursor = myDatabaseHelper.getRecentTime(roomid);
+        cursor.moveToFirst();
+        if (cursor.getCount() > 0) {
+
+            date = new Date(Long.parseLong(cursor.getString(cursor.getColumnIndex("time"))));
+            simpleDateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss");
+
+            String recenttime = simpleDateFormat.format(date)
+                    .substring(0, 10);
+            Date nowdate = new Date(curr); //새로 받은 메시지의 받은시간 long
+          //  Log.d("날짜선 추가", cursor.getString(cursor.getColumnIndex("time")) + "/nowtime " + curr);
+
+            String nowtime = simpleDateFormat.format(nowdate)
+                    .substring(0, 10);
+
+          //  Log.d("날짜선 추가", recenttime + "/nowtime " + nowtime);
+
+            if (nowtime.compareTo(recenttime) > 0) {
+                //현재시간이 최근메시지시간보다 크면, 날짜선 추가
+                myDatabaseHelper.insertChatlogs(roomid, "알림", "", nowtime, "" + curr, 0, "" + curr, "", "", "");
+                //mCallback이 널이 뜨네....이걸 해결해야겠구만..
+                //그래야, 콜백함수에 insert넣는 것도 할 수 있음.
+                if (now_room.equals(roomid) && inRoom) {
+                    mCallback.recvMsg(roomid, "알림", "", nowtime, "" + curr, 0, "" + curr, "", "", "");
+                    //Log.d("Socket Service 날짜선", roomid + userid);
+                }
+            }
+        }
+
+
         switch (protocoltype) {
 
-            //일반 메시지 일때ㄹ
+            //일반 메시지 일때
             case PT_CHAT_MSG:
                 //sqlite에 넣을 msgtype
                 userimg = protocol.getUserimg().trim();
@@ -665,33 +799,48 @@ public class SocketService extends Service {
                 type = 0;
                 Log.e("받은 chat", "total=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msg);
 
-                //여기서 sqlite에 저장해야해.
-                myDatabaseHelper.insertChatlogs(roomid, userid, userimg,
-                        msg, "" + curr, type, msgID);
+                //만약에 메시지의 형태가 url의 형태라면, 파싱해서 대표이미지, 타이틀, 컨텐츠내용 미리보기!!!
+                String regex = "^(((http(s?))\\:\\/\\/)?)([0-9a-zA-Z\\-]+\\.)+[a-zA-Z]{2,6}(\\:[0-9]+)?(\\/\\S*)?$";
+                Pattern pattern = Pattern.compile(regex);
+                Matcher matcher = pattern.matcher(msg);
 
-                //실시간으로 해당 방에 있을 때는....바로바로 업데이트
-                //내가 지금 있는 방이 어디인지를 파악해서,
-                //그방에게 전해지는 메시지만.....adapter에 add되도록...
-                if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
+                String preimg = "";
+                String pretitle = "";
+                String predesc = "";
 
-                    //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
-                    mCallback.recvMsg(roomid, userimg, userid, msg, "" + curr, type, msgID);
-                    Log.d("확인", roomid + userid);
+                if (matcher.find()) {
 
-                } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
-                    if (!userid.equals("알림")) {
+                    OGTag ogTag = new OGTag();
+                    requestOgTag(msg, ogTag, roomid, userid, userimg, curr + "", type, msgID);
+                    preimg = ogTag.getOgImageUrl();
+                    pretitle = ogTag.getOgTitle();
+                    predesc = ogTag.getOgDescription();
 
-                        sendNotification(userimg, userid, msg, roomid, time.substring(12));
-                        showCustomToast(userid, userimg, msg);
+                    Log.d("SocketService ogtag preview", preimg + " / " + pretitle + " / " + predesc);
 
+                } else {
+
+                    Log.e("SocketService text", inRoom + "" + now_room);
+                    if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
+                        //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
+                        mCallback.recvMsg(roomid, userid, userimg, msg, "" + curr, type, msgID, preimg, pretitle, predesc);
+                        Log.d("확인", roomid + userid);
+
+                    } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
+                        if (!userid.equals("알림")) {
+                            sendNotification(userimg, userid, msg, roomid, time.substring(12));
+                            showCustomToast(userid, userimg, msg);
+                        }
                     }
+                    //여기서 sqlite에 저장해야해.
+                    myDatabaseHelper.insertChatlogs(roomid, userid, userimg, msg, "" + curr, type, msgID, preimg, pretitle, predesc);
+
                 }
 
                 break;
 
             //이미지 메시지 일때
             case PT_CHAT_IMG:
-
                 type = 1;
                 userimg = protocol.getUserimg().trim();
                 msgID = protocol.getMsgId();
@@ -720,27 +869,23 @@ public class SocketService extends Service {
                     }
                 }
 
-                //여기서 sqlite에 저장해야해.
-                myDatabaseHelper.insertChatlogs(roomid, userid, userimg,
-                        msg, "" + curr, type, msgID);
                 Log.d("받은 IMG 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msgID);
-
-                //실시간으로 해당 방에 있을 때는....바로바로 업데이트
-                //내가 지금 있는 방이 어디인지를 파악해서,
-                //그방에게 전해지는 메시지만.....adapter에 add되도록...
+                Log.e("SocketService image", inRoom + "" + now_room);
                 if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
 
                     //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
-                    mCallback.recvMsg(roomid, userimg, userid, msg, "" + curr, type, msgID);
+                    mCallback.recvMsg(roomid, userid, userimg, msg, "" + curr, type, msgID, "", "", "");
                     Log.d("확인", roomid + userid);
 
                 } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
                     if (!userid.equals("알림")) {
                         sendNotification(userimg, userid, "이미지", roomid, time.substring(12));
                         showCustomToast(userid, userimg, "이미지");
-
                     }
                 }
+
+                //여기서 sqlite에 저장해야해.
+                myDatabaseHelper.insertChatlogs(roomid, userid, userimg, msg, "" + curr, type, msgID, "", "", "");
 
                 break;
 
@@ -792,7 +937,7 @@ public class SocketService extends Service {
                     mCallback2.recvMsg(roomid, userimg, userid, msg, time, type, msgID);
 
                 } else if (now_room.equals(roomid) && inRoom) {
-                    mCallback.recvMsg(roomid, userimg, userid, msg, time, type, msgID);
+                    mCallback.recvMsg(roomid, userid, userimg, msg, time, type, msgID);
                 } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
                     if (!userid.equals("알림")) {
                         sendNotification(userimg, userid, "동영상", roomid, time.substring(12));
@@ -845,6 +990,8 @@ public class SocketService extends Service {
                     //   realPath = "";
 
                 } else if (checktype == serverToCli) { //클라에 있는 템프파일 offset위치 전송.
+
+                    duringDownload=true;
 
                     String filename = protocol.getFileName().trim();
                     String tempfile = filename + ".tempfile";
@@ -970,7 +1117,7 @@ public class SocketService extends Service {
 */
 
     //노티피케이션 띄우기
-    private void sendNotification(final String userimg, String userid, String msg, String roomid, String time) {
+    public void sendNotification(final String userimg, String userid, String msg, String roomid, String time) {
 
         RemoteViews remoteViews = new RemoteViews(getPackageName(), R.layout.custom_noti);
         final Bitmap[] bm = {null};
@@ -1014,7 +1161,7 @@ public class SocketService extends Service {
 
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this)
                 .setContent(remoteViews)
-                .setSmallIcon(R.drawable.phonepink)
+                .setSmallIcon(R.drawable.babtalk)
                 //   .setContentTitle(userid)
                 //    .setContentText(msg)
                 .setAutoCancel(true)
@@ -1055,4 +1202,138 @@ public class SocketService extends Service {
             }
         }, 0);
     }
+
+
+    private OGTag requestOgTag(final String url, final OGTag ogTag, final String roomid, final String userid, final String userimg, final String curr, final int type, final String msgID) {
+        OkHttpRequest request = new OkHttpRequest();
+
+        Date date = new Date(Long.parseLong(curr));
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd, a hh:mm");
+        final String time = simpleDateFormat.format(date).toString();//.substring(12);
+
+        try {
+            request.get(url, new Callback() {
+                @Override
+                public void onFailure(Call call, IOException e) {
+                    Log.e("request failure", call.toString());
+                }
+
+                @Override
+                public void onResponse(Call call, Response response) throws IOException {
+                    String responseStr = response.body().string();
+
+                    Document doc = Jsoup.parse(responseStr);
+                    Elements ogTags = doc.select("meta[property^=og:]");
+
+                    if (ogTags.size() > 0) {
+                        // 필요한 OGTag를 추려낸다
+                        for (int i = 0; i < ogTags.size(); i++) {
+                            Element tag = ogTags.get(i);
+
+                            String text = tag.attr("property");
+                            if ("og:url".equals(text)) {
+                                //ret.setOgUrl(tag.attr("content"));
+                            } else if ("og:image".equals(text)) {
+                                ogTag.setOgImageUrl(tag.attr("content"));
+                            } else if ("og:description".equals(text)) {
+                                ogTag.setOgDescription(tag.attr("content"));
+                            } else if ("og:title".equals(text)) {
+                                ogTag.setOgTitle(tag.attr("content"));
+                            }
+                        }
+
+                        Log.d("확인", ogTag.getOgImageUrl() + " / " + ogTag.getOgTitle() + " / " + ogTag.getOgDescription());
+
+
+                        if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
+                            //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
+                            mCallback.recvMsg(roomid, userid, userimg, url, "" + curr, type, msgID, ogTag.getOgImageUrl(), ogTag.getOgTitle(), ogTag.getOgDescription());
+                            Log.d("확인", roomid + userid);
+
+                        } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
+                            if (!userid.equals("알림")) {
+                                sendNotification(userimg, userid, url, roomid, time.substring(12));
+                                showCustomToast(userid, userimg, url);
+                            }
+                        }
+                        //여기서 sqlite에 저장해야해.
+                        myDatabaseHelper.insertChatlogs(roomid, userid, userimg, url, "" + curr, type, msgID, ogTag.getOgImageUrl(), ogTag.getOgTitle(), ogTag.getOgDescription());
+
+                        // 필요한 작업을 한다.
+                        // setData(ret.getOgUrl(), ret.getOgImageUrl(), ret.getOgDescription(), ret.getOgTitle(), viewHolder);
+
+                    } else {
+                        Log.e("ogTags", "없음");
+
+                        Elements imgs = doc.getElementsByTag("img");
+                        String src = "";
+                        if (imgs.size() > 0) {
+                            src = imgs.get(0).attr("src");
+                            Log.d("<img>태그들 중에서 첫번 째 요소", "//" + src);
+                        }
+
+                        doc.title();
+
+                        System.out.println("Title: " + doc.title());
+                        System.out.println("Meta Title: " + doc.select("meta[name=title]").attr("content"));
+                        System.out.println("Meta Description: " + doc.select("meta[name=description]").attr("content"));
+
+                        ogTag.setOgImageUrl(src);
+                        ogTag.setOgDescription(doc.select("meta[name=description]").attr("content"));
+                        ogTag.setOgTitle(doc.title());
+
+
+                        if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
+                            //콜백함수로 등록된 recvMsg를 통해서, 어댑터에 채팅내용을 추가하도록...
+                            mCallback.recvMsg(roomid, userid, userimg, url, "" + curr, type, msgID, ogTag.getOgImageUrl(), ogTag.getOgTitle(), ogTag.getOgDescription());
+                            Log.d("확인", roomid + userid);
+
+                        } else { //해당 방안이 아닐 경우, 노티를 띄워주기!
+                            if (!userid.equals("알림")) {
+                                sendNotification(userimg, userid, url, roomid, time.substring(12));
+                                showCustomToast(userid, userimg, url);
+                            }
+                        }
+                        //여기서 sqlite에 저장해야해.
+                        myDatabaseHelper.insertChatlogs(roomid, userid, userimg, url, "" + curr, type, msgID, ogTag.getOgImageUrl(), ogTag.getOgTitle(), ogTag.getOgDescription());
+
+
+                        // setData(url, src, doc.select("meta[name=description]").attr("content"), doc.title(), viewHolder);
+                        // 여기가 더 늦게 불리기 때문에....
+                        //제대로 데이터가 셋팅이 안되는 구나.
+                        Log.d("확인", ogTag.getOgImageUrl() + " / " + ogTag.getOgTitle() + " / " + ogTag.getOgDescription());
+
+                    }
+
+                }
+            });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        Log.d("확인22", ogTag.getOgImageUrl() + " / " + ogTag.getOgTitle() + " / " + ogTag.getOgDescription());
+        return ogTag;
+
+    }
+
+
+    //AlarmManager를 통해서 되살아나는 서비스
+    public void registerRestartAlarm(boolean isOn) {
+
+        Intent i = new Intent(ACTION_RESTART_SERVICE);
+        sendBroadcast(i);
+
+        PendingIntent sender = PendingIntent.getBroadcast(getApplicationContext(), 0, i, 0);
+        AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+
+        if (isOn) {
+            //10초에 한번씩...확인하는 구조.
+            Toast.makeText(this, "registerRestartAlarm true", Toast.LENGTH_SHORT).show();
+            am.setRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime() + 1000, 10000, sender);
+        } else {
+            Toast.makeText(this, "registerRestartAlarm true", Toast.LENGTH_SHORT).show();
+            am.cancel(sender);
+        }
+    }
+
 }

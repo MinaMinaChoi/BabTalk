@@ -26,6 +26,7 @@ import android.widget.Toast;
 import com.bumptech.glide.Glide;
 import com.example.cmina.openmeeting.activity.ChatActivity;
 import com.example.cmina.openmeeting.activity.LoginActivity;
+import com.example.cmina.openmeeting.activity.MainActivity;
 import com.example.cmina.openmeeting.service.SocketService;
 import com.example.cmina.openmeeting.utils.ChatListItem;
 import com.example.cmina.openmeeting.utils.ManchanItem;
@@ -148,7 +149,9 @@ public class MyChatListFragment extends Fragment {
         if (getArguments() != null) {
             youtubeUrl = getArguments().getString("youtubeUrl");
             Log.d("MychatListFragment", "유튜브 공유 "+youtubeUrl);
-            getActivity().setTitle("공유할 채팅방 선택");
+            ((MainActivity)getActivity()).setActionBarTitle("공유할 채팅방 선택");
+          //  getActivity().setTitle("공유할 채팅방 선택");
+            //getActivity().getActionBar().setTitle("공유할 채팅방 선택");
 
         } else {
             youtubeUrl = "";

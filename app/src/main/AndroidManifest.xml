@@ -3,13 +3,13 @@
     package="com.example.cmina.openmeeting">
 
     <application
+        android:name=".utils.GlobalApplication"
         android:allowBackup="true"
+        android:hardwareAccelerated="true"
         android:icon="@drawable/babtalk"
         android:label="같이 밥먹자"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme"
-        android:hardwareAccelerated="true"
-        >
+        android:theme="@style/AppTheme">
         <activity android:name=".activity.OpenActivity"></activity>
 
         <activity android:name=".activity.MainActivity">
@@ -27,14 +27,50 @@
         </activity>
 
         <activity android:name=".activity.SignUpActivity"></activity>
-        <activity android:name=".activity.LoginActivity" />
+        <activity android:name=".activity.LoginActivity"></activity>
         <activity android:name=".activity.ChatActivity"></activity>
         <activity android:name=".activity.WebViewActivity" />
+        <activity android:name=".activity.ExtarInfoActivity" />
+        <activity android:name=".activity.MyNotiControlView"/>
+        <activity android:name=".activity.ProfileActivity"/>
+
+
+        <!-- [naveroauthlogin][start] 네이버아이디로로그인을 사용하기 위해서 넣어줘야하는 부분 -->
+        <activity
+            android:name="com.nhn.android.naverlogin.ui.OAuthLoginActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name="com.nhn.android.naverlogin.ui.OAuthLoginInAppBrowserActivity"
+            android:label="OAuth2.0 In-app" />
+        <!-- [naveroauthlogin][end] -->
+
+        <meta-data
+            android:name="com.kakao.sdk.AppKey"
+            android:value="@string/kakao_app_key" />
+        <meta-data
+            android:name="com.facebook.sdk.ApplicationId"
+            android:value="@string/facebook_app_id" />
 
         //stopWithTask true로하면 ontaskRemoved 호출되지 않는다.
         <service
             android:name=".service.SocketService"
             android:stopWithTask="false"></service>
+
+        <receiver android:name=".receiver.WifiChangeReceiver">
+            <intent-filter>
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+                <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receiver.RestartReceiver"
+            android:process=".remote"> //시스템의 알람을 받기위해 추가
+            <intent-filter>
+                <action android:name="RestartReceiver.restart" />
+            </intent-filter>
+        </receiver>
+
 
     </application>
 
