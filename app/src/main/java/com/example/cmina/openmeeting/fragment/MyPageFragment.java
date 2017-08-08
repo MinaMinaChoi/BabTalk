@@ -56,6 +56,7 @@ import okhttp3.Callback;
 import okhttp3.Response;
 
 import static android.app.Activity.RESULT_OK;
+import static java.security.AccessController.getContext;
 
 /**
  * Created by cmina on 2017-06-09.
@@ -194,7 +195,7 @@ public class MyPageFragment extends Fragment {
                 Glide.with(getContext()).load(R.drawable.userdefault).bitmapTransform(new CropCircleTransformation(getContext())).into(profileImage);
             } else {
                 Glide.with(getContext())
-                        .load(SaveSharedPreference.getUserimage(getContext()))
+                        .load("http://13.124.77.49/thumbnail/"+SaveSharedPreference.getUserid(getContext())+".jpg")
                         .skipMemoryCache(true) //메모리캐싱끄기
                         .diskCacheStrategy(DiskCacheStrategy.NONE) //디스트 캐싱하지 않는다
                         .bitmapTransform(new CropCircleTransformation(getContext()))

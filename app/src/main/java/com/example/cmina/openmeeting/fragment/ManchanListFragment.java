@@ -28,6 +28,7 @@ import android.widget.TextView;
 
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.example.cmina.openmeeting.activity.ChatActivity;
 import com.example.cmina.openmeeting.activity.MainActivity;
 import com.example.cmina.openmeeting.service.SocketService;
@@ -345,7 +346,12 @@ public class ManchanListFragment extends Fragment {
             if (items.get(position).getManchanuserImage().length() == 4) {
                 Glide.with(getContext()).load(R.drawable.userdefault).bitmapTransform(new CropCircleTransformation(getContext())).into(holder.huserImage);
             } else {
-                Glide.with(context).load(items.get(position).getManchanuserImage()).bitmapTransform(new CropCircleTransformation(context)).into(holder.huserImage);
+                Glide.with(context)
+                        .load(items.get(position).getManchanuserImage())
+                        .bitmapTransform(new CropCircleTransformation(context))
+                        .skipMemoryCache(true) //메모리캐싱끄기
+                        .diskCacheStrategy(DiskCacheStrategy.NONE) //디스트 캐싱하지 않는다
+                        .into(holder.huserImage);
             }
 
             Log.e("image setting", items.get(position).getManchanuserImage());

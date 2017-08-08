@@ -231,8 +231,6 @@ public class MyDatabaseHelper {
         return cursor;
     }
 
-
-
     //해당 방의 대화내용 전부 가져오는
     public Cursor getChatMsg(String roomid) {
 

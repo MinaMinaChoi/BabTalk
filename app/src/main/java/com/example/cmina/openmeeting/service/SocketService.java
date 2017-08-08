@@ -133,26 +133,15 @@ public class SocketService extends Service {
         if (receiver != null) {
             unregisterReceiver(receiver);
         }
-/*      if (os != null && is != null && socket != null) {
-            try {
-                Log.d("SocketService", "onDestroy");
-                os.close();
-                is.close();
-                dis.close();
-                dos.close();
-                socket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }*/
-        Toast.makeText(this, "SocketService destroyed", Toast.LENGTH_SHORT).show();
+
+       // Toast.makeText(this, "SocketService destroyed", Toast.LENGTH_SHORT).show();
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
       //  registerRestartAlarm(false);
-        Toast.makeText(this, "SocketService 실행", Toast.LENGTH_SHORT).show();
+      //  Toast.makeText(this, "SocketService 실행", Toast.LENGTH_SHORT).show();
         //소켓 연결 스레드 실행
         if (!connected) {
             serviceSocketThread = new ServiceSocketThread();
@@ -269,6 +258,7 @@ public class SocketService extends Service {
                     cursor = myDatabaseHelper.getRecentMsgID();
                     cursor.moveToFirst();
                     String msgid = "0";
+                    Log.e("gggg", cursor.getCount() +"");
                     if (cursor.getCount() > 0) {
                         msgid = cursor.getString(cursor.getColumnIndex("msgid"));
                     }
@@ -487,7 +477,7 @@ public class SocketService extends Service {
                                     String msgid = filename.substring(0, index);
 
                                     //만약 type ==4이고 time이 getmsgid()와 같으면 sqlite와 adapter를 지워주고
-                                    //수정중
+                                    //2017.08.05 수정중
                                     cursor = myDatabaseHelper.getVideoInfo(protocol.getMsgId());
                                     cursor.moveToFirst();
                                     if (cursor.getCount() > 0) {
@@ -533,13 +523,19 @@ public class SocketService extends Service {
                                 }
 
                             } else {
+
                                 //원래 받던방식대로. totalLen만큼 다 받은 후 분석하도록!
                                 System.out.println("인풋스트림 읽기시작 받아야할 길이 : " + total_len);
 
-                                if (total_len >= recv_len) { //받아야할 길이가 받은 길이보다 크면,
+                                if (total_len > recv_len) { //받아야할 길이가 받은 길이보다 크면,
                                     protocol.setPacket2(total_len, buf);
                                 } else {
                                     protocol.setPacket(total_len, buf); //total크기의 바이트배열에다가 지금까지 받은 buf(바이트배열)을 복사하고,
+
+                                    //수정중 2017.08.03
+                                    //하나의 패킷이 완성 되었으면, 바로 분석!
+                                    int packetType = Integer.parseInt(protocol.getProtocolType());
+                                    inmessage(packetType, protocol);
 
                                     //남은 패킷은....?
                                     left_packet = new byte[recv_len - total_len];
@@ -550,13 +546,9 @@ public class SocketService extends Service {
                                     //만약, 서버로부터 오는 새로운 메시지가 없다면..... 위에....
                                 }
 
-                                //수정중 2017.08.03
-                                //하나의 패킷이 완성 되었으면, 바로 분석!
-                                int packetType = Integer.parseInt(protocol.getProtocolType());
-                                inmessage(packetType, protocol);
 
                                 //총길이보다 덜 받았을 때...
-                                while (recv_len < total_len) {
+                                while (total_len > recv_len) {
                                     if (is.available() > 0) {
                                         //마지막으로 메시지를 받은 시간.
                                         lastReadTime = System.currentTimeMillis();
@@ -568,8 +560,8 @@ public class SocketService extends Service {
 
                                         //남은 길이 비교해서,
                                         //남은길이가 더 크면
-                                        if ((total_len - recv_len) >= recv_cnt) {
-                                            Log.d("(total_len - recv_len) >= recv_cnt)", "받아야할 길이 >= 받은 길이" + recv_cnt);
+                                        if ((total_len - recv_len) > recv_cnt) {
+                                            Log.d("(total_len - recv_len) >= recv_cnt)", "받아야할 길이 > 받은 길이" + recv_cnt);
                                             protocol.addPacket(recv_len, buf);
                                             recv_len += recv_cnt; //읽은 데이터 길이를 더한다.
                                         } else {
@@ -577,6 +569,11 @@ public class SocketService extends Service {
                                             Log.d("else", "받아야할 길이 < 받은 길이" + recv_cnt);
 
                                             protocol.addPacket2(total_len, recv_len, buf);
+
+                                            //수정중 2017.08.03
+                                            //하나의 패킷이 완성 되었으면, 바로 분석!
+                                            int packetType = Integer.parseInt(protocol.getProtocolType());
+                                            inmessage(packetType, protocol);
 
                                             left_packet = new byte[recv_cnt - (total_len - recv_len)]; //20070
                                             left_packet_len = recv_cnt - (total_len - recv_len);
@@ -609,12 +606,12 @@ public class SocketService extends Service {
 
                                     System.out.println("while 인풋스트림 읽기시작 받아야할 길이 : " + total_len + "//buf.length" + recv_len);
 
-                                    if (total_len >= recv_len) { //받아야할 길이가 받은 길이보다 크거나 같으면,
+                                    if (total_len > recv_len) { //받아야할 길이가 받은 길이보다 크거나 같으면,
                                         protocol.setPacket2(total_len, buf);
                                         Log.d("while문 total_len >= recv_len", total_len + "/" + recv_len);
 
-                                        left_packet = new byte[0];
-                                        left_packet_len = 0;
+                       /*                 left_packet = new byte[0];
+                                        left_packet_len = 0;*/
 
                                     } else {
                                         protocol.setPacket(total_len, buf); //total크기의 바이트배열에다가 지금까지 받은 buf(바이트배열)을 복사하고,
@@ -645,7 +642,7 @@ public class SocketService extends Service {
 
                                             //남은 길이 비교해서,
                                             //남은길이가 더 크면
-                                            if ((total_len - recv_len) >= recv_cnt) {
+                                            if ((total_len - recv_len) > recv_cnt) {
                                                 protocol.addPacket(recv_len, buf);
                                                 recv_len += recv_cnt; //읽은 데이터 길이를 더한다.
 
@@ -656,6 +653,8 @@ public class SocketService extends Service {
 
                                             } else {
                                                 protocol.addPacket2(total_len, recv_len, buf);
+
+
 
                                                 left_packet = new byte[recv_cnt + recv_len - total_len];
                                                 left_packet_len = recv_cnt + recv_len - total_len;
@@ -672,7 +671,6 @@ public class SocketService extends Service {
                                     } //총길이만큼 받는 것!
 
                                     int packetType1 = Integer.parseInt(protocol.getProtocolType());
-                                    //while 계속 돌아서 계속 입력 될때가 있네...
                                     inmessage(packetType1, protocol);
 
                                 }
@@ -691,7 +689,7 @@ public class SocketService extends Service {
                                 //여기서 만약 서버로 동영상 보내는 중이었으면 엑스표시 뜨도록...
                                 if (duringSending) {
                                     //sqlite와 adapter에 추가.
-
+                                    //roomid, userid, userimg, msg,  time, int type,  msgid,  preimg,   pretitle,  predesc
                                     if (inRoom) {
                                         mCallback.recvMsg(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time,
                                                 "", "", "");
@@ -990,6 +988,11 @@ public class SocketService extends Service {
                     //   realPath = "";
 
                 } else if (checktype == serverToCli) { //클라에 있는 템프파일 offset위치 전송.
+
+                    //수정중
+                    //2017.08.05
+                    //서버에서 파일 보내기 전에..
+
 
                     duringDownload=true;
 

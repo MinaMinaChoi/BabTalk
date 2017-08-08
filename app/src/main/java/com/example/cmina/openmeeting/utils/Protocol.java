@@ -12,6 +12,7 @@ import java.io.RandomAccessFile;
 import java.io.Serializable;
 
 import static android.R.attr.data;
+import static android.R.attr.thumb;
 
 /**
  * Created by cmina on 2017-06-17.
@@ -64,7 +65,7 @@ public class Protocol implements Serializable {
 
     //생성자
     public Protocol(int packetLen) {
-       // this.protocolType = protocolType;
+        // this.protocolType = protocolType;
         //어떤 상수를 생성자에 넣어 프로코톨 클래스를 생성하느냐에 따라서 바이트 배열의 packet length가 결정.
         getPacket(packetLen);
     }
@@ -181,7 +182,7 @@ public class Protocol implements Serializable {
     //전체크기에서 지금까지 받은 길이를 뺀만큼!!!
     public void addPacket2(int total, int destPos, byte[] buf) {
         System.out.println("addpacket2222222 더 읽은 데이터 길이 : " + buf.length);
-        System.out.println("addpacket2222222 남은데이터 : " + ( buf.length - (total - destPos)));
+        System.out.println("addpacket2222222 남은데이터 : " + (buf.length - (total - destPos)));
         System.arraycopy(buf, 0, packet, destPos, total - destPos);
     }
 
@@ -231,11 +232,11 @@ public class Protocol implements Serializable {
 
     //msgid 세팅
     public void setMsgId(String msgId) {
-        System.arraycopy(msgId.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG , msgId.getBytes().length);
+        System.arraycopy(msgId.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG, msgId.getBytes().length);
     }
 
     public String getMsgId() {
-        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG , LEN_MSG_ID).trim();
+        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG, LEN_MSG_ID).trim();
     }
 
 
@@ -252,7 +253,7 @@ public class Protocol implements Serializable {
     //이미지의 길이만큼 바이트배열을 만들어서, 패킷에서 이미지를 나타내는 바이트배열만 data에 담는다
     public byte[] getImg(int imglength) {
         byte[] data = new byte[imglength];
-        System.arraycopy(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID , data, 0, imglength);
+        System.arraycopy(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID, data, 0, imglength);
         return data;
     }
 
@@ -269,7 +270,7 @@ public class Protocol implements Serializable {
             //   int total_len=0;
             byte[] data = new byte[size];
             while ((len = bis.read(data)) != -1) { //더이상 읽을 것이 없을 때 -1
-                System.arraycopy(data, 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID + 이전len, len);
+                System.arraycopy(data, 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + 이전len, len);
                 //  total_len += len;
                 이전len += len;
             }
@@ -284,14 +285,13 @@ public class Protocol implements Serializable {
 
     //바이트배열을 그대로 보내기?실시간으로 데이터 주고받을 수 있을 때
     public void sendImage(byte[] data) {
-        System.arraycopy(data, 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID, data.length);
+        System.arraycopy(data, 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID, data.length);
     }
-
 
 
     //파일 이어받기 시도중
     public void setOffSet(String offSet) {
-        System.arraycopy(offSet.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID +LEN_FILE_NAME, offSet.trim().getBytes().length);
+        System.arraycopy(offSet.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME, offSet.trim().getBytes().length);
     }
 
     public String getOffSet() {
@@ -299,55 +299,67 @@ public class Protocol implements Serializable {
     }
 
     public void setCheckType(String checkType) {
-        System.arraycopy(checkType.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG +LEN_MSG_ID+ LEN_FILE_NAME +LEN_OFFSET_CHECK, checkType.trim().getBytes().length);
+        System.arraycopy(checkType.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME + LEN_OFFSET_CHECK, checkType.trim().getBytes().length);
     }
 
     public String getCheckType() {
-        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG+LEN_MSG_ID + LEN_FILE_NAME +LEN_OFFSET_CHECK , LEN_CHECK_TYPE).trim();
+        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME + LEN_OFFSET_CHECK, LEN_CHECK_TYPE).trim();
     }
 
+    //2017.08.05
+    public void setThumb(byte[] thumb) {
+        System.arraycopy(thumb, 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME + LEN_OFFSET_CHECK + LEN_CHECK_TYPE, thumb.length);
+    }
+
+    public byte[] getThumb(int thumbLen) {
+        byte[] data = new byte[thumbLen];
+        System.arraycopy(packet,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME + LEN_OFFSET_CHECK + LEN_CHECK_TYPE, data, 0, thumbLen);
+        return data;
+    }
+
+
     //특정위치부터 파일 전송하기기
-   public void sendVideo(String filename, int offset) {
+    public void sendVideo(String filename, int offset) {
 
-       RandomAccessFile randomAccessFile = null;
-       try {
-           randomAccessFile = new RandomAccessFile(filename, "r");
-           randomAccessFile.seek(offset);
+        RandomAccessFile randomAccessFile = null;
+        try {
+            randomAccessFile = new RandomAccessFile(filename, "r");
+            randomAccessFile.seek(offset);
 
-           FileInputStream fis = new FileInputStream(randomAccessFile.getFD());
-           BufferedInputStream bis = new BufferedInputStream(fis);
+            FileInputStream fis = new FileInputStream(randomAccessFile.getFD());
+            BufferedInputStream bis = new BufferedInputStream(fis);
 
-           int len;
-           int 이전len = 0;
-           int size = 4096;
-           //   int total_len=0;
-           byte[] data = new byte[size];
-           while ((len = bis.read(data)) != -1) { //더이상 읽을 것이 없을 때 -1
-               System.arraycopy(data, 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID + LEN_FILE_NAME + 이전len, len);
-               이전len += len;
-           }
+            int len;
+            int 이전len = 0;
+            int size = 4096;
+            //   int total_len=0;
+            byte[] data = new byte[size];
+            while ((len = bis.read(data)) != -1) { //더이상 읽을 것이 없을 때 -1
+                System.arraycopy(data, 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME + 이전len, len);
+                이전len += len;
+            }
 
-       } catch (FileNotFoundException e) {
-           e.printStackTrace();
-       } catch (IOException e) {
-           e.printStackTrace();
-       }
-   }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 
     //동영상 전송 테스트중
     public void setFileName(String fileName) {
-        System.arraycopy(fileName.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG +LEN_MSG_ID , fileName.trim().getBytes().length);
+        System.arraycopy(fileName.trim().getBytes(), 0, packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID, fileName.trim().getBytes().length);
     }
 
     public String getFileName() {
-        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID , LEN_FILE_NAME).trim();
+        return new String(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID, LEN_FILE_NAME).trim();
     }
 
     //이미지의 길이만큼 바이트배열을 만들어서, 패킷에서 이미지를 나타내는 바이트배열만 data에 담는다
     public byte[] getVideo(int imglength) {
         byte[] data = new byte[imglength];
-        System.arraycopy(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG  + LEN_MSG_ID + LEN_FILE_NAME , data, 0, imglength);
+        System.arraycopy(packet, LEN_TOTAL_LEN + LEN_PROTOCOL_TYPE + LEN_ROOM_ID + LEN_USER_ID + LEN_USER_IMG + LEN_MSG_ID + LEN_FILE_NAME, data, 0, imglength);
         return data;
     }
 

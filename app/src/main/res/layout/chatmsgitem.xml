@@ -79,9 +79,9 @@
                 android:id="@+id/previewTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_margin="5dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:layout_margin="5dp"
                 android:textColor="#222"
                 android:textSize="16dp" />
 
@@ -89,9 +89,11 @@
                 android:id="@+id/previewDesc"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginLeft="5dp"
+                android:layout_marginBottom="5dp"
+                android:layout_marginRight="5dp"
                 android:ellipsize="end"
-                android:maxLines="1"
-                android:layout_margin="5dp" />
+                android:maxLines="1" />
 
         </LinearLayout>
     </LinearLayout>

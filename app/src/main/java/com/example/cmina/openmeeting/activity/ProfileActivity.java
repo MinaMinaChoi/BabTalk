@@ -79,12 +79,6 @@ public class ProfileActivity extends AppCompatActivity {
                         try {
                             jsonObject = new JSONObject(responseStr);
 
-                            useridTextView.setText(jsonObject.getString("userid"));
-                            phoneTextView.setText(jsonObject.getString("userphone"));
-                            areaTextView.setText(jsonObject.getString("userarea"));
-                            briefTextView.setText(jsonObject.getString("userbrief"));
-                            emailTextView.setText(jsonObject.getString("useremail"));
-
                             new Thread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -92,6 +86,13 @@ public class ProfileActivity extends AppCompatActivity {
                                         @Override
                                         public void run() {
                                             try {
+
+                                                useridTextView.setText(jsonObject.getString("userid"));
+                                                phoneTextView.setText(jsonObject.getString("userphone"));
+                                                areaTextView.setText(jsonObject.getString("userarea"));
+                                                briefTextView.setText(jsonObject.getString("userbrief"));
+                                                emailTextView.setText(jsonObject.getString("useremail"));
+
                                                 Glide.with(ProfileActivity.this).load(jsonObject.getString("userimage")).bitmapTransform(new CropCircleTransformation(ProfileActivity.this)).into(profileImageView);
                                             } catch (JSONException e) {
                                                 e.printStackTrace();

@@ -1,17 +1,15 @@
 package com.example.cmina.openmeeting.adapter;
 
-import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.media.MediaScannerConnection;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AlertDialog;
@@ -29,23 +27,19 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.RequestManager;
 import com.example.cmina.openmeeting.activity.ChatActivity;
+import com.example.cmina.openmeeting.activity.MainActivity;
 import com.example.cmina.openmeeting.activity.ProfileActivity;
 import com.example.cmina.openmeeting.activity.WebViewActivity;
 import com.example.cmina.openmeeting.utils.ChatMessage;
 import com.example.cmina.openmeeting.R;
-import com.example.cmina.openmeeting.utils.OGTag;
+import com.example.cmina.openmeeting.utils.MediaScanner;
 import com.example.cmina.openmeeting.utils.OkHttpRequest;
 import com.example.cmina.openmeeting.utils.Protocol;
 import com.example.cmina.openmeeting.utils.SaveSharedPreference;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -68,7 +62,6 @@ import static com.example.cmina.openmeeting.activity.ChatActivity.realPath;
 import static com.example.cmina.openmeeting.activity.MainActivity.myDatabaseHelper;
 import static com.example.cmina.openmeeting.utils.Protocol.PT_OFFSET;
 import static com.example.cmina.openmeeting.utils.Protocol.cliToServer;
-import static com.kakao.auth.StringSet.file;
 
 /**
  * Created by cmina on 2017-06-13.
@@ -269,7 +262,7 @@ public class ChatMessageAdapter extends BaseAdapter {
             viewHolder.previewLinear.setVisibility(View.GONE);
             viewHolder.chatMessageTextView.setVisibility(View.VISIBLE);
             viewHolder.chatMessageTextView.setTextColor(R.color.Gray);
-            viewHolder.chatMessageTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
+            viewHolder.chatMessageTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
             viewHolder.chatMessageTextView.setText(chatMessage.getMsg());
             viewHolder.chatMessageTextView.setBackground(null);
 
@@ -592,6 +585,11 @@ public class ChatMessageAdapter extends BaseAdapter {
                     }
                     newfos.close();
                     fis.close();
+
+                    MediaScanner scanner = MediaScanner.newInstance(context);
+                    scanner.mediaScanning(filedir+params[0]);
+                    Log.d("dddd", videoFile.getAbsolutePath() + "/ "+filedir+params[0]);
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
