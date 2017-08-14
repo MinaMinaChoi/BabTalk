@@ -45,6 +45,7 @@ import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -64,6 +65,7 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
 
+import static android.icu.lang.UCharacter.GraphemeClusterBreak.L;
 import static com.example.cmina.openmeeting.R.id.useridTextView;
 import static com.example.cmina.openmeeting.activity.ChatActivity.getFileName;
 
@@ -82,6 +84,8 @@ import static com.example.cmina.openmeeting.utils.Protocol.PT_OFFSET;
 import static com.example.cmina.openmeeting.utils.Protocol.SOCKET_CHECK;
 import static com.example.cmina.openmeeting.utils.Protocol.cliToServer;
 import static com.example.cmina.openmeeting.utils.Protocol.serverToCli;
+import static com.kakao.auth.StringSet.file;
+import static com.kakao.auth.StringSet.msg;
 
 /**
  * Created by cmina on 2017-06-13.
@@ -129,19 +133,19 @@ public class SocketService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-    //    registerRestartAlarm(true);
-        if (receiver != null) {
+        //    registerRestartAlarm(true);
+      /*  if (receiver != null) {
             unregisterReceiver(receiver);
-        }
+        }*/
 
-       // Toast.makeText(this, "SocketService destroyed", Toast.LENGTH_SHORT).show();
+        // Toast.makeText(this, "SocketService destroyed", Toast.LENGTH_SHORT).show();
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
-      //  registerRestartAlarm(false);
-      //  Toast.makeText(this, "SocketService 실행", Toast.LENGTH_SHORT).show();
+        //  registerRestartAlarm(false);
+        //  Toast.makeText(this, "SocketService 실행", Toast.LENGTH_SHORT).show();
         //소켓 연결 스레드 실행
         if (!connected) {
             serviceSocketThread = new ServiceSocketThread();
@@ -217,6 +221,7 @@ public class SocketService extends Service {
                 Log.d("소켓연결 시도", "lastReadTime : " + lastReadTime + "// sendCheckTime : " + sendCheckTime);
 
                 //2017.08.03 수정중
+/*
                 IntentFilter intentfilter = new IntentFilter();
                 intentfilter.addAction(EVENT_NETWORK_CHAGED);
                 receiver = new BroadcastReceiver() {
@@ -235,11 +240,11 @@ public class SocketService extends Service {
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
-
                         }
                     }
                 };
                 registerReceiver(receiver, intentfilter);
+*/
 
                 if (socket != null) { //정상적으로 소켓 연결되었으면...
                     Log.d("SocketService 소켓연결 성공", socket.toString());
@@ -258,7 +263,7 @@ public class SocketService extends Service {
                     cursor = myDatabaseHelper.getRecentMsgID();
                     cursor.moveToFirst();
                     String msgid = "0";
-                    Log.e("gggg", cursor.getCount() +"");
+                    Log.e("gggg", cursor.getCount() + "");
                     if (cursor.getCount() > 0) {
                         msgid = cursor.getString(cursor.getColumnIndex("msgid"));
                     }
@@ -334,13 +339,15 @@ public class SocketService extends Service {
                             //여기서 만약 서버로 동영상 보내는 중이었으면 엑스표시 뜨도록...
                             if (duringSending) {
                                 //sqlite와 adapter에 추가.
+                                //실패한 거 다시 받을 때
+                                myDatabaseHelper.removetype4(protocol.getMsgId());
+                                mCallback2.recvMsg("", "", "", "", "" + now_time, 2, protocol.getMsgId(), "", "", "");
 
                                 if (inRoom) {
                                     mCallback.recvMsg(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "",
                                             "", "", "");
                                 }
 
-                                //정상적으로 추가
                                 myDatabaseHelper.insertChatlogs(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "",
                                         "", "", "");
                                 Log.e("보내다가 실패", now_room + " / " + getFileName(realPath) + " / " + now_time);
@@ -378,7 +385,7 @@ public class SocketService extends Service {
                             int recv_len = buf.length; //받은 길이
                             int recv_cnt = 0;
 
-
+                            //2017.08.08 캐시에 파일 저장
                             if (protocol_type == PT_CHAT_MOVIE) { //동영상파일이면 바로바로 파일에 쓰기시작!!
 
                                 System.out.println("동영상파일 전송받는중. 바로 임시파일에 쓰기");
@@ -389,7 +396,29 @@ public class SocketService extends Service {
                                 String filename = protocol.getFileName().trim();
                                 String tempfile = filename + ".tempfile";
 
-                                File file = new File(SocketService.this.getFilesDir(), tempfile);
+                                //2017.08.08 수정중
+                                File file = new File(SocketService.this.getCacheDir(), tempfile);
+                                file.createNewFile();
+                               /* try {
+                                    file.createNewFile();
+
+                                    FileOutputStream fos = new FileOutputStream(file);
+                                    BufferedOutputStream bos = new BufferedOutputStream(fos);
+                                    bos.write(protocol.getImg(Integer.parseInt(totalLen) - 133), 0, Integer.parseInt(totalLen) - 133);
+
+                                    bos.flush();
+                                    bos.close();
+                                    fos.close();
+
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+
+                                //수정중 캐시파일로
+                                msg = file.getAbsolutePath();
+*/
+                                //수정중
+                                //     File file = new File(SocketService.this.getFilesDir(), tempfile);
 
                                 if (file.isFile()) {
                                     System.out.println("파일 이미 존재" + tempfile);
@@ -431,10 +460,11 @@ public class SocketService extends Service {
                                 fos.close();
 
                                 //다 읽었으면//tempfile 확장자 떼기
-                                File fileToMove = new File(SocketService.this.getFilesDir(), filename);
+                                File fileToMove = new File(SocketService.this.getCacheDir(), filename);
                                 boolean isMoved = file.renameTo(fileToMove);
 
                                 if (isMoved) {
+                                    filename = fileToMove.getAbsolutePath();
                                     System.out.println("파일이동 성공" + filename + "/" + fileToMove.length());
 
                                     //받은 시간
@@ -473,8 +503,8 @@ public class SocketService extends Service {
                                     SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd, a hh:mm");
                                     String time = simpleDateFormat.format(date).toString();
 
-                                    int index = filename.lastIndexOf(".");//문자열에서 탐색하는 문자열이 마지막으로 등장하는 위치에 대한 index를 반환
-                                    String msgid = filename.substring(0, index);
+                                    int index = fileToMove.getName().lastIndexOf(".");//문자열에서 탐색하는 문자열이 마지막으로 등장하는 위치에 대한 index를 반환
+                                    String msgid = fileToMove.getName().substring(0, index);
 
                                     //만약 type ==4이고 time이 getmsgid()와 같으면 sqlite와 adapter를 지워주고
                                     //2017.08.05 수정중
@@ -655,7 +685,6 @@ public class SocketService extends Service {
                                                 protocol.addPacket2(total_len, recv_len, buf);
 
 
-
                                                 left_packet = new byte[recv_cnt + recv_len - total_len];
                                                 left_packet_len = recv_cnt + recv_len - total_len;
 
@@ -684,22 +713,26 @@ public class SocketService extends Service {
 
                             //만약 서버로 동영상을 보내는 중이었으면, 엑스표시하도록....
                             //수정중
+
+                            //sqlite와 adapter에 추가.
+                            //여기서 만약 서버로 동영상 보내는 중이었으면 엑스표시 뜨도록...
                             if (duringSending) {
                                 //sqlite와 adapter에 추가.
-                                //여기서 만약 서버로 동영상 보내는 중이었으면 엑스표시 뜨도록...
-                                if (duringSending) {
-                                    //sqlite와 adapter에 추가.
-                                    //roomid, userid, userimg, msg,  time, int type,  msgid,  preimg,   pretitle,  predesc
-                                    if (inRoom) {
-                                        mCallback.recvMsg(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time,
-                                                "", "", "");
-                                    }
-                                    //정상적으로 추가
-                                    myDatabaseHelper.insertChatlogs(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time,
+                                //roomid, userid, userimg, msg,  time, int type,  msgid,  preimg,   pretitle,  predesc
+                                //실패한 거 다시 받을 때 2017.08.08
+                                myDatabaseHelper.removetype4(protocol.getMsgId());
+                                mCallback2.recvMsg(now_room, "", "", "", "" + now_time, 2, protocol.getMsgId(), "", "", "");
+                                //
+                                if (inRoom) {
+                                    mCallback.recvMsg(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time,
                                             "", "", "");
-                                    Log.e("보내다가 실패", now_room + " / " + getFileName(realPath) + " / " + now_time);
                                 }
+                                //정상적으로 추가
+                                myDatabaseHelper.insertChatlogs(now_room, SaveSharedPreference.getUserid(SocketService.this), SaveSharedPreference.getUserimage(SocketService.this), getFileName(realPath), "" + now_time, 4, "" + now_time,
+                                        "", "", "");
+                                Log.e("보내다가 실패", now_room + " / " + getFileName(realPath) + " / " + now_time);
                             }
+
 
                             break; //while문 정지
                         }
@@ -718,7 +751,7 @@ public class SocketService extends Service {
 
                             //다시 연결
                             connect();
-                            unregisterReceiver(receiver);
+                           // unregisterReceiver(receiver);
                             Log.d("SocketService", "소켓연결 다시");
                         }
 
@@ -766,12 +799,12 @@ public class SocketService extends Service {
             String recenttime = simpleDateFormat.format(date)
                     .substring(0, 10);
             Date nowdate = new Date(curr); //새로 받은 메시지의 받은시간 long
-          //  Log.d("날짜선 추가", cursor.getString(cursor.getColumnIndex("time")) + "/nowtime " + curr);
+            //  Log.d("날짜선 추가", cursor.getString(cursor.getColumnIndex("time")) + "/nowtime " + curr);
 
             String nowtime = simpleDateFormat.format(nowdate)
                     .substring(0, 10);
 
-          //  Log.d("날짜선 추가", recenttime + "/nowtime " + nowtime);
+            //  Log.d("날짜선 추가", recenttime + "/nowtime " + nowtime);
 
             if (nowtime.compareTo(recenttime) > 0) {
                 //현재시간이 최근메시지시간보다 크면, 날짜선 추가
@@ -843,9 +876,29 @@ public class SocketService extends Service {
                 userimg = protocol.getUserimg().trim();
                 msgID = protocol.getMsgId();
                 //long curr = System.currentTimeMillis();  // 또는 System.nanoTime();
+                msg = msgID + ".jpg"; // curr + ".jpg";
 
-                msg = curr + ".jpg";
-                FileOutputStream fileOutputStream = null;
+                //2017.08.08 수정중
+                File tempFile = new File(SocketService.this.getCacheDir(), msg);
+                try {
+                    tempFile.createNewFile();
+
+                    FileOutputStream fos = new FileOutputStream(tempFile);
+                    BufferedOutputStream bos = new BufferedOutputStream(fos);
+                    bos.write(protocol.getImg(Integer.parseInt(totalLen) - 133), 0, Integer.parseInt(totalLen) - 133);
+
+                    bos.flush();
+                    bos.close();
+                    fos.close();
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                //수정중 캐시파일로
+                msg = tempFile.getAbsolutePath();
+
+            /*    FileOutputStream fileOutputStream = null;
                 BufferedOutputStream bos = null;
                 //내장 저장소로 저장 시도
                 try {
@@ -866,7 +919,7 @@ public class SocketService extends Service {
                         e.printStackTrace();
                     }
                 }
-
+*/
                 Log.d("받은 IMG 확인", "totalLen=" + totalLen + "/" + roomid + "/" + userid + "/" + userimg + "/" + msgID);
                 Log.e("SocketService image", inRoom + "" + now_room);
                 if (now_room.equals(roomid) && inRoom) {   //방이름이 같고, inRoom일 때
@@ -994,7 +1047,7 @@ public class SocketService extends Service {
                     //서버에서 파일 보내기 전에..
 
 
-                    duringDownload=true;
+                    duringDownload = true;
 
                     String filename = protocol.getFileName().trim();
                     String tempfile = filename + ".tempfile";

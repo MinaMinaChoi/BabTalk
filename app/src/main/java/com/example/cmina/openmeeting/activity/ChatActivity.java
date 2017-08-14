@@ -220,7 +220,7 @@ public class ChatActivity extends AppCompatActivity {
     public ChatMessageAdapter adapter;
 
     //채팅방 UI변수
-    Button sendBtn, socketCloseBtn;
+    Button sendBtn/*, socketCloseBtn*/;
     ImageButton sendImage;
     EditText chatMessageEditText;
     ListView chatListView;
@@ -498,6 +498,7 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        inRoom = true;
     }
 
     @Override
@@ -549,6 +550,8 @@ public class ChatActivity extends AppCompatActivity {
     };
 
 
+
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -579,7 +582,7 @@ public class ChatActivity extends AppCompatActivity {
         adapter = new ChatMessageAdapter(items, ChatActivity.this);
         sendBtn = (Button) findViewById(R.id.sendBtn);
         sendImage = (ImageButton) findViewById(R.id.sendImage);
-        socketCloseBtn = (Button) findViewById(R.id.socketcloseBtn);
+     /*   socketCloseBtn = (Button) findViewById(R.id.socketcloseBtn);
         socketCloseBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -597,7 +600,7 @@ public class ChatActivity extends AppCompatActivity {
                     e.printStackTrace();
                 }
             }
-        });
+        });*/
 
         //갤러리나, 카메라
         sendImage.setOnClickListener(new View.OnClickListener() {
@@ -605,8 +608,8 @@ public class ChatActivity extends AppCompatActivity {
             public void onClick(View view) {
                 //다이얼로그
                 AlertDialog.Builder builder = new AlertDialog.Builder(ChatActivity.this);
-                builder.setTitle("이미지 전송");
-                builder.setMessage("이미지 전송하겠습니까?")
+                builder.setTitle("파일 전송");
+                builder.setMessage("파일 전송하겠습니까?")
                         .setCancelable(true)
                         .setPositiveButton("갤러리", new DialogInterface.OnClickListener() {
                             @Override

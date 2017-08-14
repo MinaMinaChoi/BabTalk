@@ -10,6 +10,7 @@ import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AlertDialog;
@@ -33,6 +34,7 @@ import com.example.cmina.openmeeting.activity.ProfileActivity;
 import com.example.cmina.openmeeting.activity.WebViewActivity;
 import com.example.cmina.openmeeting.utils.ChatMessage;
 import com.example.cmina.openmeeting.R;
+import com.example.cmina.openmeeting.utils.FileUrlDownload;
 import com.example.cmina.openmeeting.utils.MediaScanner;
 import com.example.cmina.openmeeting.utils.OkHttpRequest;
 import com.example.cmina.openmeeting.utils.Protocol;
@@ -45,6 +47,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -195,10 +199,13 @@ public class ChatMessageAdapter extends BaseAdapter {
                 if (matcher.find()) {
                     //형식이 도메인형식이라면..
                     viewHolder.previewLinear.setVisibility(View.VISIBLE);
-
                     viewHolder.previewTitle.setText(chatMessage.getPreTitle());
                     viewHolder.previewDesc.setText(chatMessage.getPreDesc());
-                    Glide.with(context).load(chatMessage.getPreImg()).placeholder(R.drawable.placeholder).into(viewHolder.previewImg);
+                    Glide.with(context)
+                            .load(chatMessage.getPreImg())
+                            .placeholder(R.drawable.placeholder)
+                            .into(viewHolder.previewImg);
+                //    Log.d("ChatmessageAdapter", chatMessage.getPreImg());
 
                 } else {
                     //일반 메시지
@@ -213,26 +220,41 @@ public class ChatMessageAdapter extends BaseAdapter {
                 viewHolder.sendfail.setVisibility(View.GONE);
                 viewHolder.previewLinear.setVisibility(View.GONE);
                 viewHolder.chatImageView.setVisibility(View.VISIBLE);
-                Glide.with(context).load(context.getFileStreamPath(chatMessage.getMsg())).into(viewHolder.chatImageView);
-///data/data/com.androidhuman.app/files/filename.ext
+                //수정중   Glide.with(context).load(context.getFileStreamPath(chatMessage.getMsg())).into(viewHolder.chatImageView);
+                //해당 캐시파일이 지워졌으면, 서버에서 가져오도록...
+                File tempFile = new File(chatMessage.getMsg());
+                if (tempFile.exists()) {
+                    Glide.with(context).load(chatMessage.getMsg()).into(viewHolder.chatImageView);
+                } else {
+                    Glide.with(context).load("http://13.124.77.49/uploads/"+tempFile.getName()).into(viewHolder.chatImageView);
+                }
 
             } else { //동영상일 경우
 
                 Bitmap image = null;
+                //2017.08.08 수정중 Bitmap image = ThumbnailUtils.createVideoThumbnail("" + context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                File tempFile = new File(chatMessage.getMsg());
 
                 //보내기 실패하면, 엑스표시
                 if (chatMessage.getMsgtype() == 4) {
+                    //로컬의 동영상파일을 통해서 섬네일
                     image = ThumbnailUtils.createVideoThumbnail(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + chatMessage.getMsg(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
                     Log.d("msgtype =4일 때 ", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + chatMessage.getMsg());
                     viewHolder.chatTimeTextView.setVisibility(View.GONE);
                     viewHolder.sendfail.setVisibility(View.VISIBLE);
                     viewHolder.videoImage.setVisibility(View.GONE);
                 } else {
-                    image = ThumbnailUtils.createVideoThumbnail("" + context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
-                    Log.d("msgtype =2일 때 ", "" + context.getFileStreamPath(chatMessage.getMsg()));
+                    //image = ThumbnailUtils.createVideoThumbnail("" + context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                    Log.d("msgtype =2일 때 ", "" + chatMessage.getMsg());
                     viewHolder.chatTimeTextView.setVisibility(View.VISIBLE);
                     viewHolder.sendfail.setVisibility(View.GONE);
                     viewHolder.videoImage.setVisibility(View.VISIBLE);
+
+                    if (tempFile.exists()) {
+                        image = ThumbnailUtils.createVideoThumbnail(chatMessage.getMsg(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                    } else {
+                        image = ThumbnailUtils.createVideoThumbnail("http://13.124.77.49/uploads/"+tempFile.getName(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                    }
                 }
 
                 viewHolder.chatImageView.setVisibility(View.VISIBLE);
@@ -243,7 +265,7 @@ public class ChatMessageAdapter extends BaseAdapter {
                 if (image != null) {
                     viewHolder.chatImageView.setImageBitmap(image);
                 } else {
-                    Glide.with(context).load(R.drawable.videodefault).into(viewHolder.chatImageView);
+                    Glide.with(context).load(R.drawable.video_player).into(viewHolder.chatImageView);
                 }
 
             }
@@ -308,7 +330,14 @@ public class ChatMessageAdapter extends BaseAdapter {
                 viewHolder.sendfail.setVisibility(View.GONE);
                 viewHolder.progressBar.setVisibility(View.GONE);
                 viewHolder.previewLinear.setVisibility(View.GONE);
-                Glide.with(context).load(context.getFileStreamPath(chatMessage.getMsg())).into(viewHolder.chatImageView);
+                //2017.08.08 수정중   Glide.with(context).load(context.getFileStreamPath(chatMessage.getMsg())).into(viewHolder.chatImageView);
+                //해당 캐시파일이 지워졌으면, 서버에서 가져오도록...
+                File tempFile = new File(chatMessage.getMsg());
+                if (tempFile.exists()) {
+                    Glide.with(context).load(chatMessage.getMsg()).into(viewHolder.chatImageView);
+                } else {
+                    Glide.with(context).load("http://13.124.77.49/uploads/"+tempFile.getName()).into(viewHolder.chatImageView);
+                }
             } else {  //동영상일 경우 섬네일이미지 셋팅.
 
                 viewHolder.chatMessageTextView.setVisibility(View.GONE);
@@ -317,11 +346,18 @@ public class ChatMessageAdapter extends BaseAdapter {
                 viewHolder.sendfail.setVisibility(View.GONE);
                 viewHolder.progressBar.setVisibility(View.GONE);
                 viewHolder.previewLinear.setVisibility(View.GONE);
-                Bitmap image = ThumbnailUtils.createVideoThumbnail("" + context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                //2017.08.08 수정중 Bitmap image = ThumbnailUtils.createVideoThumbnail("" + context.getFileStreamPath(chatMessage.getMsg()), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                File tempFile = new File(chatMessage.getMsg());
+                Bitmap image = null;
+                if (tempFile.exists()) {
+                    image = ThumbnailUtils.createVideoThumbnail(chatMessage.getMsg(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                } /*else {
+                    image = ThumbnailUtils.createVideoThumbnail("http://13.124.77.49/uploads/"+tempFile.getName(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND);
+                }*/
                 if (image != null) {
                     viewHolder.chatImageView.setImageBitmap(image);
                 } else {
-                    Glide.with(context).load(R.drawable.videodefault).into(viewHolder.chatImageView);
+                    Glide.with(context).load(R.drawable.video_player).into(viewHolder.chatImageView);
                 }
             }
 
@@ -365,7 +401,7 @@ public class ChatMessageAdapter extends BaseAdapter {
 
                                     Intent intent = new Intent();
                                     intent.setAction(Intent.ACTION_VIEW);
-                                    File videoFile = new File("" + context.getFileStreamPath(chatMessage.getMsg()));
+                                    File videoFile = new File(chatMessage.getMsg());
                                     videoFile.setReadable(true, false); //읽을 수 있도록...
                                     intent.setDataAndType(Uri.fromFile(videoFile), "video/*");
                                     // 2017.08.03
@@ -522,32 +558,6 @@ public class ChatMessageAdapter extends BaseAdapter {
     }
 
 
-
-    private boolean copyFile(File file , String save_file){
-        boolean result;
-      //  File file = new File(infile);
-        if(file!=null&&file.exists()){
-            try {
-                FileInputStream fis = new FileInputStream(file);
-                FileOutputStream newfos = new FileOutputStream(save_file);
-                int readcount=0;
-                byte[] buffer = new byte[1024];
-                while((readcount = fis.read(buffer,0,1024))!= -1){
-                    newfos.write(buffer,0,readcount);
-                }
-                newfos.close();
-                fis.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            result = true;
-        }else{
-            result = false;
-        }
-        return result;
-    }
-
-
     class DownloadAsync extends AsyncTask<String, String , Boolean> {
 
         private ProgressDialog progressDialog;
@@ -572,23 +582,36 @@ public class ChatMessageAdapter extends BaseAdapter {
                 file.mkdir();
             }
 
-            File videoFile = new File("" + context.getFileStreamPath(params[0]));
+            //수정중  File videoFile = new File("" + context.getFileStreamPath(params[0]));
+            File videoFile = new File(params[0]);
 
             if(file!=null&&file.exists()){
                 try {
-                    FileInputStream fis = new FileInputStream(videoFile);
-                    FileOutputStream newfos = new FileOutputStream(filedir+params[0]);
-                    int readcount=0;
-                    byte[] buffer = new byte[1024];
-                    while((readcount = fis.read(buffer,0,1024))!= -1){
-                        newfos.write(buffer,0,readcount);
+                    FileInputStream fis = null;
+                    if (videoFile.exists()) {
+                        fis = new FileInputStream(videoFile);
+
+                        FileOutputStream newfos = new FileOutputStream(filedir+videoFile.getName());
+                        int readcount=0;
+                        byte[] buffer = new byte[1024];
+                        while((readcount = fis.read(buffer,0,1024))!= -1){
+                            newfos.write(buffer,0,readcount);
+                        }
+                        newfos.close();
+                        fis.close();
+
+                    } else {
+
+                        new FileUrlDownload().fileUrlReadAndDownload("http://13.124.77.49/uploads/"+videoFile.getName(), videoFile.getName(), filedir);
+
+                       // fis = new FileInputStream(new File("http://13.124.77.49/uploads/"+videoFile.getName()));
                     }
-                    newfos.close();
-                    fis.close();
+
 
                     MediaScanner scanner = MediaScanner.newInstance(context);
-                    scanner.mediaScanning(filedir+params[0]);
-                    Log.d("dddd", videoFile.getAbsolutePath() + "/ "+filedir+params[0]);
+                    scanner.mediaScanning(filedir+videoFile.getName());
+                   // scanner.mediaScannerClose();
+                    Log.d("dddd", videoFile.getAbsolutePath() + "/ "+filedir+videoFile.getName());
 
                 } catch (Exception e) {
                     e.printStackTrace();

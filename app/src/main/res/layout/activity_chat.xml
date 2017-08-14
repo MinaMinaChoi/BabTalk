@@ -8,11 +8,11 @@
         android:layout_height="match_parent"
         android:layout_weight="1">
 
-        <Button
+       <!-- <Button
             android:text="소켓연결끊기"
             android:layout_width="120dp"
             android:layout_height="40dp"
-            android:id="@+id/socketcloseBtn" />
+            android:id="@+id/socketcloseBtn" />-->
 
         <ListView
             android:id="@+id/chatListView"
@@ -21,8 +21,8 @@
             android:layout_above="@+id/chatLinearLayout"
             android:padding="10dp"
             android:dividerHeight="10dp"
-            android:divider="#00000000"
-            android:layout_below="@+id/socketcloseBtn" />
+            android:divider="#00000000"/>
+          <!--  android:layout_below="@+id/socketcloseBtn"-->
 
         <LinearLayout
             android:id="@+id/chatLinearLayout"

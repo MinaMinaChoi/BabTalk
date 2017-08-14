@@ -46,6 +46,10 @@ public class MediaScanner {
         mPath = path;
         mMediaScanner.connect();
     }
+
+    public void mediaScannerClose() {
+        mMediaScanner.disconnect();
+    }
 }
 
 
